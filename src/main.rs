@@ -13,14 +13,14 @@ use std::thread;
 // {"format": "osh-history-v1", "description": null}
 // {"event": {"timestamp": "2023-09-23T06:29:36.257915+00:00", "command": "ll", "duration": 0.009093, "exit-code": 0, "folder": "/home/iff", "machine": "nixos", "session": "93d380e9-4a45-41b1-89e5-447165cf65fc"}}
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd, Clone)]
+#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd)]
 struct Format {
     format: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
 }
 
-//#[derive(Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd, Clone)]
+//#[derive(Eq, PartialEq, Ord, PartialOrd)]
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
 struct Event {
@@ -55,45 +55,11 @@ impl Entry {
 
     // fn is_event(&self) -> bool {
     //     match self {
-    //         Entry::EventE(_) => true,
+    //         Entry::EventE{_} => true,
     //         _ => false,
     //     }
     // }
 }
-
-// we cant really define Ord for Entry
-// impl Ord for Entry {
-//     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-//         match (self, other) {
-//             (Entry::EventE(e1), Entry::EventE(e2)) => e1.timestamp.cmp(&e2.timestamp),
-//             (Entry::FormatE(f1), Entry::FormatE(f2)) => f1.format.cmp(&f2.format),
-//             (Entry::FormatE(_), Entry::EventE(_)) => std::cmp::Ordering::Less,
-//             (Entry::EventE(_), Entry::FormatE(_)) => std::cmp::Ordering::Greater,
-//         }
-//     }
-// }
-
-// impl PartialOrd for Entry {
-//     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-//         match (self, other) {
-//             (Entry::FormatE(_), Entry::EventE(_)) => None,
-//             (Entry::EventE(_), Entry::FormatE(_)) => None,
-//             (Entry::EventE(e1), Entry::EventE(e2)) => Some(e1.cmp(e2)),
-//             (Entry::FormatE(f1), Entry::FormatE(f2)) => Some(f1.cmp(f2)),
-//         }
-//     }
-// }
-//
-// impl PartialEq for Entry {
-//     fn eq(&self, other: &Self) -> bool {
-//         match (self, other) {
-//             (Entry::FormatE(_), Entry::EventE(_)) => false,
-//             (Entry::EventE(_), Entry::FormatE(_)) => false,
-//             (Entry::EventE(e1), Entry::EventE(e2)) => e1.cmp(e2) == std::cmp::Ordering::Equal,
-//             (Entry::FormatE(f1), Entry::FormatE(f2)) => f1.cmp(f2) == std::cmp::Ordering::Equal,
-//         }
-//     }
-// }
 
 type Entries = Vec<Entry>;
 
