@@ -9,6 +9,7 @@ use std::process::Command;
 use std::sync::mpsc;
 use std::thread;
 
+// format specs
 // {"format": "osh-history-v1", "description": null}
 // {"event": {"timestamp": "2023-09-23T06:29:36.257915+00:00", "command": "ll", "duration": 0.009093, "exit-code": 0, "folder": "/home/iff", "machine": "nixos", "session": "93d380e9-4a45-41b1-89e5-447165cf65fc"}}
 
@@ -25,8 +26,8 @@ struct Format {
 struct Event {
     timestamp: DateTime<chrono::Utc>,
     command: String,
-    duration: f32, // FIXME f32?
-    exit_code: i8,
+    duration: f32,
+    exit_code: i16,
     folder: String,
     machine: String,
     session: String,
@@ -35,18 +36,19 @@ struct Event {
 type Events = Vec<Event>;
 
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(untagged)]
 enum Entry {
+    // have to treat the event as untagged as well
     #[serde(rename(deserialize = "event"))]
-    EventE(Event),
-    // FIXME this does not work, and not so easy to parse the format json (tagged vs. non)
-    #[serde(rename(deserialize = "format"), skip_deserializing)]
+    EventE { event: Event },
+    #[serde(rename(deserialize = "format"))]
     FormatE(Format),
 }
 
 impl Entry {
     fn as_event_or_none(&self) -> Option<Event> {
         match self {
-            Entry::EventE(event) => Some(event.clone()),
+            Entry::EventE { event } => Some(event.clone()),
             _ => None,
         }
     }
@@ -127,11 +129,10 @@ fn main() {
         .arg("--min-height=10")
         .arg("--header=some-header")
         .arg("--tiebreak=index")
-        .arg("--read0")
+        //.arg("--read0")
         .arg("--delimiter=\x1f")
         .arg("--preview-window=down:10:wrap")
-        //.arg("--preview=python -m draft get-preview {1}")
-        .arg("--print0")
+        //.arg("--print0")
         .arg("--print-query")
         .arg("--expect=enter")
         .stdin(std::process::Stdio::piped())
@@ -142,8 +143,8 @@ fn main() {
     let mut stdin = fzf.stdin.take().expect("failed to open stdin");
 
     thread::spawn(move || {
-        let base = Path::new("/Users/iff/src/osh-oxy/urithiru.local.osh");
         // TODO batch?
+        let base = Path::new("/home/iff/src/osh-oxy/blackhole.osh");
         tx.send(load_simple(base)).unwrap();
     });
 
@@ -155,7 +156,7 @@ fn main() {
                     .into_iter()
                     .map(|e| e.command)
                     .collect::<Vec<String>>()
-                    .join("\x1f")
+                    .join("\n")
                     .as_bytes(),
             )
             .expect("Failed to write to stdin");
@@ -171,7 +172,7 @@ mod main {
     #[test]
     fn test_parsing_osh_file() {
         // TODO format not supported
-        let events = load_simple(Path::new("/Users/iff/src/osh-oxy/urithiru.local.osh"));
-        assert_eq!(events.expect("failed").len(), 121);
+        let events = load_simple(Path::new("/home/iff/.osh/active/nixos.osh"));
+        assert_eq!(events.expect("failed").len(), 450);
     }
 }
