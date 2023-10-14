@@ -137,8 +137,8 @@ mod main {
 
     #[test]
     fn test_parsing_osh_file() {
-        // TODO format not supported
         let events = load_simple(Path::new("/home/iff/.osh/active/nixos.osh"));
+        // FIXME moving target
         assert_eq!(events.expect("failed").len(), 450);
     }
 }
