@@ -1,67 +1,11 @@
-use chrono::DateTime;
-use serde::{Deserialize, Serialize};
+use osh_oxy::*;
 use serde_jsonlines::json_lines;
 use std::io::Result;
 use std::io::Write;
-use std::option::Option;
 use std::path::Path;
 use std::process::Command;
 use std::sync::mpsc;
 use std::thread;
-
-// format specs
-// {"format": "osh-history-v1", "description": null}
-// {"event": {"timestamp": "2023-09-23T06:29:36.257915+00:00", "command": "ll", "duration": 0.009093, "exit-code": 0, "folder": "/home/iff", "machine": "nixos", "session": "93d380e9-4a45-41b1-89e5-447165cf65fc"}}
-
-#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd)]
-struct Format {
-    format: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    description: Option<String>,
-}
-
-//#[derive(Eq, PartialEq, Ord, PartialOrd)]
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "kebab-case")]
-struct Event {
-    timestamp: DateTime<chrono::Utc>,
-    command: String,
-    duration: f32,
-    exit_code: i16,
-    folder: String,
-    machine: String,
-    session: String,
-}
-
-type Events = Vec<Event>;
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(untagged)]
-enum Entry {
-    // have to treat the event as untagged as well
-    #[serde(rename(deserialize = "event"))]
-    EventE { event: Event },
-    #[serde(rename(deserialize = "format"))]
-    FormatE(Format),
-}
-
-impl Entry {
-    fn as_event_or_none(&self) -> Option<Event> {
-        match self {
-            Entry::EventE { event } => Some(event.clone()),
-            _ => None,
-        }
-    }
-
-    // fn is_event(&self) -> bool {
-    //     match self {
-    //         Entry::EventE{_} => true,
-    //         _ => false,
-    //     }
-    // }
-}
-
-type Entries = Vec<Entry>;
 
 fn load_osh(base: &Path) -> Result<Entries> {
     json_lines(base)?.collect::<Result<Entries>>()
@@ -139,6 +83,6 @@ mod main {
     fn test_parsing_osh_file() {
         let events = load_simple(Path::new("/home/iff/.osh/active/nixos.osh"));
         // FIXME moving target
-        assert_eq!(events.expect("failed").len(), 450);
+        assert!(events.expect("failed").len() > 450);
     }
 }
