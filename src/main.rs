@@ -72,7 +72,15 @@ fn main() {
             .expect("Failed to write to stdin");
     });
 
-    fzf.wait_with_output().expect("failed to read stdout");
+    let output = fzf.wait_with_output().expect("failed to read stdout");
+
+    // TODO more stable testing
+    let mut parts = std::str::from_utf8(&output.stdout)
+        .expect("stdout to str")
+        .split("\n")
+        .collect::<Vec<_>>();
+    parts.pop().expect("");
+    println!("{}", parts.pop().expect(""));
 }
 
 #[cfg(test)]
