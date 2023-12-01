@@ -90,7 +90,6 @@ mod main {
     #[test]
     fn test_parsing_osh_file() {
         let events = load_simple(Path::new("tests/local.osh"));
-        // FIXME moving target
         assert!(events.expect("failed").len() == 5);
     }
 }
