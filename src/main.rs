@@ -2,7 +2,7 @@ use osh_oxy::*;
 use serde_jsonlines::json_lines;
 use std::io::Result;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::mpsc;
 use std::thread;
@@ -11,11 +11,12 @@ fn load_osh(base: &Path) -> Result<Entries> {
     json_lines(base)?.collect::<Result<Entries>>()
 }
 
-fn load_simple(base: &Path) -> Result<Events> {
+fn load_simple(base: &mut PathBuf) -> Result<Events> {
     // # TODO eventually try threads or processes per file? not per file type
     // events = load_osh(base) + load_zsh(base) + load_legacy(base)
 
-    let events = load_osh(base); // todo load rest
+    base.push("local.osh");
+    let events = load_osh(base.as_path()); // todo load rest
 
     // TODO prevent clone here
     let only_events: Result<Events> =
@@ -31,6 +32,9 @@ fn load_simple(base: &Path) -> Result<Events> {
 }
 
 fn main() {
+    let mut base = home::home_dir().expect("no home dir found");
+    base.push(".osh");
+
     // using a channel to ship data over
     let (tx, rx) = mpsc::channel();
 
@@ -54,8 +58,7 @@ fn main() {
 
     thread::spawn(move || {
         // TODO batch?
-        let base = Path::new("/home/iff/.osh/local.osh");
-        tx.send(load_simple(base)).unwrap();
+        tx.send(load_simple(&mut base)).unwrap();
     });
 
     thread::spawn(move || {
