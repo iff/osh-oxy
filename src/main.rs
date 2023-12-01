@@ -54,7 +54,7 @@ fn main() {
 
     thread::spawn(move || {
         // TODO batch?
-        let base = Path::new("/home/iff/src/osh-oxy/blackhole.osh");
+        let base = Path::new("/home/iff/.osh/local.osh");
         tx.send(load_simple(base)).unwrap();
     });
 
@@ -89,8 +89,8 @@ mod main {
 
     #[test]
     fn test_parsing_osh_file() {
-        let events = load_simple(Path::new("/home/iff/.osh/active/nixos.osh"));
+        let events = load_simple(Path::new("tests/local.osh"));
         // FIXME moving target
-        assert!(events.expect("failed").len() > 450);
+        assert!(events.expect("failed").len() == 5);
     }
 }
