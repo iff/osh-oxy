@@ -18,7 +18,7 @@ fn load_simple(base: &mut PathBuf) -> Result<Events> {
     base.push("local.osh");
     let events = load_osh(base.as_path());
 
-    // TODO prevent clone here? but probably not that heavy..
+    // maybe prevent clone here? but probably not that heavy..
     let only_events: Result<Events> =
         events.map(|e| e.into_iter().filter_map(|v| v.as_event_or_none()).collect());
     // this is working "in-place" but we end up not knowing that we only have events left
@@ -71,12 +71,12 @@ fn main() {
             .write_all(
                 received
                     .into_iter()
-                    .map(|e| e.command)
+                    .map(|e| e.command) // TODO: display more
                     .collect::<Vec<String>>()
                     .join("\n")
                     .as_bytes(),
             )
-            .expect("Failed to write to stdin");
+            .expect("failed to write to stdin");
     });
 
     let output = fzf.wait_with_output().expect("failed to read stdout");
@@ -86,8 +86,8 @@ fn main() {
         .expect("stdout to str")
         .split("\n")
         .collect::<Vec<_>>();
-    parts.pop().expect("");
-    println!("{}", parts.pop().expect(""));
+    parts.pop().expect("expects one item");
+    println!("{}", parts.pop().expect("expects one item"));
 }
 
 #[cfg(test)]
