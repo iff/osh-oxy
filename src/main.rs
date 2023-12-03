@@ -9,41 +9,17 @@ use std::sync::mpsc;
 use std::thread;
 use tokio::fs::File;
 use tokio::io::BufReader;
+use tokio_stream::StreamExt;
 
 async fn load_osh_events(osh_file: impl AsRef<Path>) -> Result<Events> {
-    // let events = json_lines(base)?.collect::<Result<Entries>>();
     let fp = BufReader::new(File::open(osh_file).await?);
     let reader = AsyncJsonLinesReader::new(fp);
     let events = reader
-        .read_all::<Event>()
+        .read_all::<Entry>()
         .collect::<std::io::Result<Vec<_>>>()
-        .await?;
+        .await;
     events.map(|e| e.into_iter().filter_map(|v| v.as_event_or_none()).collect())
 }
-
-// fn load_simple(base: impl AsMut<Path>) -> Result<Events> {
-//     // TODO thread per file
-//     // events = load_osh(base) + load_zsh(base) + load_legacy(base)
-//
-//     base.push("local.osh");
-//     let events = load_osh_events(base);
-//
-//     // maybe prevent clone here? but probably not that heavy..
-//     let only_events: Result<Events> =
-//         events.map(|e| e.into_iter().filter_map(|v| v.as_event_or_none()).collect());
-//     // this is working "in-place" but we end up not knowing that we only have events left
-//     //events.map(|e| e.retain(|v| v.is_event()));
-//
-//     // TODO sorting can't be done with map (in-place?)
-//     match only_events {
-//         Ok(mut r) => {
-//             // r.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-//             r.sort_by(|a, b| b.partial_cmp(&a).unwrap());
-//             return Ok(r);
-//         }
-//         Err(e) => return Err(e),
-//     };
-// }
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -98,11 +74,10 @@ async fn main() -> anyhow::Result<()> {
                     Ok(mut r) => {
                         // r.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
                         r.sort_by(|a, b| b.partial_cmp(&a).unwrap());
-                        tx.send(r);
+                        let _ = tx.send(r);
                     }
-                    Err(e) => {},
+                    Err(_e) => {}
                 }
-                // tx.send(load_simple(&mut base)).unwrap();
             });
 
             thread::spawn(move || {
