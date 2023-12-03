@@ -96,7 +96,9 @@ mod main {
 
     #[test]
     fn test_parsing_osh_file() {
-        let events = load_simple(Path::new("tests/local.osh"));
+        let mut path = PathBuf::new();
+        path.push("tests");
+        let events = load_simple(&mut path);
         assert!(events.expect("failed").len() == 5);
     }
 }
