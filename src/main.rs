@@ -1,5 +1,7 @@
 use anyhow::Context;
 use clap::{Parser, Subcommand};
+use futures::future;
+use glob::glob;
 use osh_oxy::*;
 use serde_jsonlines::AsyncJsonLinesReader;
 use std::io::Result;
@@ -40,9 +42,6 @@ async fn main() -> anyhow::Result<()> {
 
     match args.command {
         Command::Search {} => {
-            let mut base = home::home_dir().expect("no home dir found");
-            base.push(".osh");
-
             // using a channel to ship data over
             let (tx, rx) = mpsc::channel();
 
@@ -64,20 +63,19 @@ async fn main() -> anyhow::Result<()> {
 
             let mut stdin = fzf.stdin.take().expect("failed to open stdin");
 
-            // TODO load all files
-            base.push("local.osh");
-            let events = load_osh_events(base).await;
+            let home = home::home_dir().expect("no home dir found");
+            let oshs = glob(format!("{}/.osh/**/*.osh", home.display()).as_str())?;
+
+            let mut all = future::try_join_all(oshs.map(|p| load_osh_events(p.expect(""))))
+                .await?
+                .into_iter()
+                .flatten()
+                .collect::<Vec<Event>>();
 
             thread::spawn(move || {
                 // TODO batch?
-                match events {
-                    Ok(mut r) => {
-                        // r.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-                        r.sort_by(|a, b| b.partial_cmp(&a).unwrap());
-                        let _ = tx.send(r);
-                    }
-                    Err(_e) => {}
-                }
+                all.sort_by(|a, b| b.partial_cmp(&a).unwrap());
+                let _ = tx.send(all);
             });
 
             thread::spawn(move || {
