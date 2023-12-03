@@ -12,23 +12,27 @@ fn load_osh(base: &Path) -> Result<Entries> {
 }
 
 fn load_simple(base: &mut PathBuf) -> Result<Events> {
-    // # TODO eventually try threads or processes per file? not per file type
+    // TODO thread per file
     // events = load_osh(base) + load_zsh(base) + load_legacy(base)
 
     base.push("local.osh");
-    let events = load_osh(base.as_path()); // todo load rest
+    let events = load_osh(base.as_path());
 
-    // TODO prevent clone here
+    // TODO prevent clone here? but probably not that heavy..
     let only_events: Result<Events> =
         events.map(|e| e.into_iter().filter_map(|v| v.as_event_or_none()).collect());
-    // this is workin "in-place" but we end up not knowing that we only have events left
+    // this is working "in-place" but we end up not knowing that we only have events left
     //events.map(|e| e.retain(|v| v.is_event()));
 
-    // TODO merge all vecs before sorting (and returning)
-    // events.map(|mut e| e.sort_by(|a, b| a.timestamp.cmp(&b.timestamp)));
-    //only_events.map(|mut e| e.sort_by(|a, b| a.cmp(&b)));
-
-    return only_events;
+    // TODO sorting can't be done with map (in-place?)
+    match only_events {
+        Ok(mut r) => {
+            // r.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+            r.sort_by(|a, b| b.partial_cmp(&a).unwrap());
+            return Ok(r);
+        }
+        Err(e) => return Err(e),
+    };
 }
 
 fn main() {

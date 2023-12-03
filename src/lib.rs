@@ -10,9 +10,7 @@ pub struct Format {
     pub description: Option<String>,
 }
 
-// {"event": {"timestamp": "2023-09-23T06:29:36.257915+00:00", "command": "ll", "duration": 0.009093, "exit-code": 0, "folder": "/home/iff", "machine": "nixos", "session": "93d380e9-4a45-41b1-89e5-447165cf65fc"}}
-//#[derive(Eq, PartialEq, Ord, PartialOrd)]
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, PartialOrd)]
 #[serde(rename_all = "kebab-case")]
 pub struct Event {
     pub timestamp: DateTime<chrono::Utc>,
@@ -29,7 +27,7 @@ pub type Events = Vec<Event>;
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum Entry {
-    // have to treat the event as untagged as well
+    // have to treat the event as untagged due to untagged Format
     #[serde(rename(deserialize = "event"))]
     EventE { event: Event },
     #[serde(rename(deserialize = "format"))]
