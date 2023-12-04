@@ -20,7 +20,14 @@ async fn load_osh_events(osh_file: impl AsRef<Path>) -> Result<Events> {
         .read_all::<Entry>()
         .collect::<std::io::Result<Vec<_>>>()
         .await;
-    events.map(|e| e.into_iter().filter_map(|v| v.as_event_or_none()).collect())
+
+    // TODO sort here
+    events.map(|e| {
+        e.into_iter()
+            .filter_map(|v| v.as_event_or_none())
+            .collect::<Events>()
+        //.sort_by(|a, b| b.partial_cmp(&a))
+    })
 }
 
 #[derive(Parser, Debug)]
@@ -64,8 +71,9 @@ async fn main() -> anyhow::Result<()> {
             let mut stdin = fzf.stdin.take().expect("failed to open stdin");
 
             let home = home::home_dir().expect("no home dir found");
-            let oshs = glob(format!("{}/.osh/**/*.osh", home.display()).as_str())?;
+            let oshs = glob((home.to_str().expect("").to_owned() + "/.osh/*/*.osh").as_str())?;
 
+            // TODO maybe we don't need the join here?
             let mut all = future::try_join_all(oshs.map(|p| load_osh_events(p.expect(""))))
                 .await?
                 .into_iter()
@@ -73,8 +81,9 @@ async fn main() -> anyhow::Result<()> {
                 .collect::<Vec<Event>>();
 
             thread::spawn(move || {
-                // TODO batch?
+                // TODO merge sorted vecs here (and sort in load_osh_events
                 all.sort_by(|a, b| b.partial_cmp(&a).unwrap());
+                // TODO batch?
                 let _ = tx.send(all);
             });
 
