@@ -124,7 +124,8 @@ async fn main() -> anyhow::Result<()> {
             // tty? or just produce output and pipe?
             let mut fzf = std::process::Command::new("sh")
                 .arg("-c")
-                .arg("fzf --height=70% --min-height=10 --header=osh-oxy --tiebreak=index --delimiter=\x1f --preview-window=down:10:wrap --with-nth=1 --preview=\"print -a \\[{2}\\] \\[{3}\\]; echo; echo '> {4}'\" --print-query --expect=enter")
+                // FIXME previewing {4} somhow executes the command?
+                .arg("fzf --height=70% --min-height=10 --header=osh-oxy --tiebreak=index --delimiter=\x1f --preview-window=down:10:wrap --with-nth=1 --preview=\"print -a \\[{2}\\] \\[{3}\\]\" --print-query --expect=enter")
                 .stdin(std::process::Stdio::piped())
                 .stdout(std::process::Stdio::piped())
                 .spawn()
