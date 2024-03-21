@@ -1,0 +1,22 @@
+[package]
+name = "osh-oxy"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.68"
+chrono = { version = "0.4.31", features = ["serde"] }
+clap = { version = "4.0.32", features = ["derive"]}
+futures = "0.3.29"
+glob = "0.3.1"
+home = "0.5.5"
+serde = { version = "1.0.136", features = ["derive"] }
+serde_json = "1.0.79"
+serde-jsonlines = { version = "0.4.0", features = ["async"] }
+tokio = { version = "1.23.0", features = ["full"] }
+tokio-util = { version = "0.7.9", features = ["full"] }
+tokio-test = "*"
+tokio-stream = "*"
+timeago = "0.4.2"

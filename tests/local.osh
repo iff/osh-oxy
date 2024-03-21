@@ -1,0 +1,6 @@
+{"format": "osh-history-v1", "description": null}
+{"event": {"timestamp": "2023-09-23T06:29:36.257915+00:00", "command": "ll", "duration": 0.009093, "exit-code": 0, "folder": "/home/xyz", "machine": "deadcode", "session": "93d380e9-4a45-41b1-89e5-447165cf65fc"}}
+{"event": {"timestamp": "2023-09-23T06:29:55.710974+00:00", "command": "osh", "duration": 0.087282, "exit-code": 0, "folder": "/home/xyz", "machine": "deadcode", "session": "93d380e9-4a45-41b1-89e5-447165cf65fc"}}
+{"event": {"timestamp": "2023-09-23T06:30:00.433557+00:00", "command": "ll", "duration": 0.009825, "exit-code": 0, "folder": "/home/xyz/.osh", "machine": "deadcode", "session": "93d380e9-4a45-41b1-89e5-447165cf65fc"}}
+{"event": {"timestamp": "2023-09-23T06:30:50.746292+00:00", "command": "l", "duration": 0.011943, "exit-code": 0, "folder": "/home/xyz", "machine": "deadcode", "session": "5ed2cbda-4821-4f00-8a67-468aaa301377"}}
+{"event": {"timestamp": "2023-09-23T06:30:54.959092+00:00", "command": "ll", "duration": 0.009501, "exit-code": 0, "folder": "/home/xyz", "machine": "deadcode", "session": "5ed2cbda-4821-4f00-8a67-468aaa301377"}}
