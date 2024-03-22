@@ -18,9 +18,13 @@ what is not supported yet:
 
 ## installation (nix flake)
 
-`nix build github:iff/osh-oxy`
+build with nix:
 
-if you use this in your flakes:
+```
+nix build github:iff/osh-oxy
+```
+
+using osh-oxy in with flakes:
 
 ```
 osh-oxy = {
@@ -34,5 +38,6 @@ osh-oxy = {
 
 - robust output parsing
 - fix preview
-- support different ways of merging/sorting history search (session, ...)
+- fix serach args (session-id filter)
+- support different ways of merging/sorting history search
 - use rust native fzf library?
