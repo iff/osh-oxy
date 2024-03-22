@@ -1,5 +1,5 @@
 {
-  description = "roam research related tools and libs";
+  description = "osh-oxy: fzf shell history search";
 
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
