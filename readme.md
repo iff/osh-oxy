@@ -24,7 +24,7 @@ build with nix:
 nix build github:iff/osh-oxy
 ```
 
-using osh-oxy in with flakes:
+using osh-oxy with flakes:
 
 ```
 osh-oxy = {
@@ -38,6 +38,6 @@ osh-oxy = {
 
 - robust output parsing
 - fix preview
-- fix serach args (session-id filter)
+- fix search args (session-id/time filter)
 - support different ways of merging/sorting history search
 - use rust native fzf library?
