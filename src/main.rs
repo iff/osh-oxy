@@ -110,7 +110,7 @@ async fn main() -> anyhow::Result<()> {
                 .context("failed to serialise event")?;
         }
         Command::Search {
-            query: _,
+            query,
             session_id: _,
             session_start: _,
         } => {
@@ -125,7 +125,7 @@ async fn main() -> anyhow::Result<()> {
             let mut fzf = std::process::Command::new("sh")
                 .arg("-c")
                 // FIXME previewing {4} somhow executes the command?
-                .arg("fzf --height=70% --min-height=10 --header=osh-oxy --tiebreak=index --delimiter=\x1f --preview-window=down:10:wrap --with-nth=1 --preview=\"print -a \\[{2}\\] \\[{3}\\]\" --print-query --expect=enter")
+                .arg(format!("fzf --height=70% --min-height=10 --header=osh-oxy --tiebreak=index --delimiter=\x1f --preview-window=down:10:wrap --with-nth=1 --preview=\"print -a \\[{{2}}\\] \\[{{3}}\\]\" --print-query --expect=enter --query={}", query))
                 .stdin(std::process::Stdio::piped())
                 .stdout(std::process::Stdio::piped())
                 .spawn()
