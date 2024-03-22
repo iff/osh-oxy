@@ -22,13 +22,13 @@ enum Command {
     },
     AppendEvent {
         #[arg(long)]
-        starttime: f32,
+        starttime: f64,
         #[arg(long)]
         command: String,
         #[arg(long)]
         folder: String,
         #[arg(long)]
-        endtime: f32,
+        endtime: f64,
         #[arg(long)]
         exit_code: i16,
         #[arg(long)]

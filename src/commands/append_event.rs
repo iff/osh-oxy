@@ -4,10 +4,10 @@ use osh_oxy::{Entry, Event, Format};
 use serde_jsonlines::append_json_lines;
 
 pub(crate) fn invoke(
-    starttime: f32,
+    starttime: f64,
     command: &str,
     folder: &str,
-    endtime: f32,
+    endtime: f64,
     exit_code: i16,
     machine: &str,
     session: &str,
@@ -31,7 +31,7 @@ pub(crate) fn invoke(
     let e = Event {
         timestamp: Utc.timestamp_nanos((starttime * 1e9) as i64).into(),
         command: command.to_string(),
-        duration: (endtime - starttime),
+        duration: (endtime - starttime) as f32,
         exit_code,
         folder: folder.to_string(),
         machine: machine.to_string(),
