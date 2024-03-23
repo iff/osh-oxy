@@ -12,7 +12,7 @@ use tokio::fs::File;
 use tokio::io::BufReader;
 use tokio_stream::StreamExt;
 
-pub async fn load_osh_events(osh_file: impl AsRef<Path>) -> Result<Events> {
+async fn load_osh_events(osh_file: impl AsRef<Path>) -> Result<Events> {
     let fp = BufReader::new(File::open(osh_file).await?);
     let reader = AsyncJsonLinesReader::new(fp);
     let events = reader
@@ -119,4 +119,22 @@ pub(crate) async fn invoke(
     );
 
     Ok(())
+}
+
+#[cfg(test)]
+mod serach {
+    use super::*;
+    use std::path::Path;
+
+    macro_rules! aw {
+        ($e:expr) => {
+            tokio_test::block_on($e)
+        };
+    }
+
+    #[test]
+    fn test_parsing_osh_file() {
+        let events = aw!(load_osh_events(Path::new("tests/local.osh")));
+        assert!(events.expect("failed").len() == 5);
+    }
 }

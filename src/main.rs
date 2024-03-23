@@ -63,22 +63,3 @@ async fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
-
-#[cfg(test)]
-mod main {
-    use super::*;
-    use commands::search::load_osh_events;
-    use std::path::Path;
-
-    macro_rules! aw {
-        ($e:expr) => {
-            tokio_test::block_on($e)
-        };
-    }
-
-    #[test]
-    fn test_parsing_osh_file() {
-        let events = aw!(load_osh_events(Path::new("tests/local.osh")));
-        assert!(events.expect("failed").len() == 5);
-    }
-}
