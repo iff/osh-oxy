@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local, TimeZone, Utc};
+use chrono::Utc;
 use futures::future;
 use osh_oxy::{load_osh_events, osh_files, Event, Events};
 use std::io::Write;
@@ -7,13 +7,10 @@ use std::thread;
 
 pub(crate) async fn invoke(
     query: &str,
-    session_id: Option<String>,
-    session_start: Option<f32>,
+    _session_id: Option<String>,
+    _session_start: Option<f32>,
 ) -> anyhow::Result<()> {
     let (tx, rx) = mpsc::channel();
-
-    // if session_start is not None:
-    //     session_start = datetime.fromtimestamp(session_start, tz=timezone.utc)
 
     // needs sh to be able to use echo in preview
     // TODO: --read0 --print0

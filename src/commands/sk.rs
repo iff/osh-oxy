@@ -8,8 +8,8 @@ use std::{sync::Arc, thread};
 
 pub(crate) async fn invoke(
     query: &str,
-    session_id: Option<String>,
-    session_start: Option<f32>,
+    _session_id: Option<String>,
+    _session_start: Option<f32>,
 ) -> anyhow::Result<()> {
     let oshs = osh_files();
     let mut all = future::try_join_all(oshs.into_iter().map(load_osh_events))
