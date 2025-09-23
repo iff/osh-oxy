@@ -1,6 +1,12 @@
 use chrono::{DateTime, Local};
+use glob::glob;
 use serde::{Deserialize, Serialize};
+use serde_jsonlines::AsyncJsonLinesReader;
 use std::option::Option;
+use std::path::{Path, PathBuf};
+use tokio::fs::File;
+use tokio::io::BufReader;
+use tokio_stream::StreamExt;
 
 // {"format": "osh-history-v1", "description": null}
 #[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -51,3 +57,45 @@ impl Entry {
 }
 
 pub type Entries = Vec<Entry>;
+
+pub async fn load_osh_events(osh_file: impl AsRef<Path>) -> std::io::Result<Events> {
+    let fp = BufReader::new(File::open(osh_file).await?);
+    let reader = AsyncJsonLinesReader::new(fp);
+    let events = reader
+        .read_all::<Entry>()
+        .collect::<std::io::Result<Vec<_>>>()
+        .await;
+
+    events.map(|e| {
+        e.into_iter()
+            .filter_map(|v| v.as_event_or_none())
+            .collect::<Events>()
+    })
+}
+
+pub fn osh_files() -> Vec<PathBuf> {
+    let home = home::home_dir().expect("no home dir found");
+    let pattern = format!("{}/.osh/*/*.osh", home.to_str().expect(""));
+    glob(&pattern)
+        .expect("failed to read glob pattern")
+        .filter_map(Result::ok)
+        .collect()
+}
+
+#[cfg(test)]
+mod serach {
+    use super::*;
+    use std::path::Path;
+
+    macro_rules! aw {
+        ($e:expr) => {
+            tokio_test::block_on($e)
+        };
+    }
+
+    #[test]
+    fn test_parsing_osh_file() {
+        let events = aw!(load_osh_events(Path::new("tests/local.osh")));
+        assert!(events.expect("failed").len() == 5);
+    }
+}
