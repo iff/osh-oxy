@@ -3,6 +3,7 @@
     - loading file
     - ...
 - robust output parsing
-- fix search args (session-id/time filter)
 - support different ways of merging/sorting history search
+- splitting lib up in different formats (when adding more)
+x fix search args (session-id/time filter)
 x use rust native fzf library?

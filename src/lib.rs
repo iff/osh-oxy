@@ -75,7 +75,34 @@ impl Entry {
 
 pub type Entries = Vec<Entry>;
 
-pub async fn load_osh_events(osh_file: impl AsRef<Path>) -> std::io::Result<Events> {
+// TODO maybe later something more generic
+pub struct EventFilter {
+    session_id: Option<String>,
+}
+
+impl EventFilter {
+    pub fn new(session_id: Option<String>) -> Self {
+        Self { session_id }
+    }
+
+    pub fn apply(&self, event: Event) -> Option<Event> {
+        match &self.session_id {
+            None => {}
+            Some(session_id) => {
+                if event.session != *session_id {
+                    return None;
+                }
+            }
+        }
+
+        Some(event)
+    }
+}
+
+pub async fn load_osh_events(
+    osh_file: impl AsRef<Path>,
+    filter: &EventFilter,
+) -> std::io::Result<Events> {
     let fp = BufReader::new(File::open(osh_file).await?);
     let reader = AsyncJsonLinesReader::new(fp);
     let events = reader
@@ -86,6 +113,7 @@ pub async fn load_osh_events(osh_file: impl AsRef<Path>) -> std::io::Result<Even
     events.map(|e| {
         e.into_iter()
             .filter_map(|v| v.as_event_or_none())
+            .filter_map(|v| filter.apply(v))
             .collect::<Events>()
     })
 }
@@ -100,7 +128,7 @@ pub fn osh_files() -> Vec<PathBuf> {
 }
 
 #[cfg(test)]
-mod serach {
+mod test {
     use super::*;
     use std::path::Path;
 
@@ -112,7 +140,15 @@ mod serach {
 
     #[test]
     fn test_parsing_osh_file() {
-        let events = aw!(load_osh_events(Path::new("tests/local.osh")));
-        assert!(events.expect("failed").len() == 5);
+        let filter = EventFilter::new(None);
+        let events = aw!(load_osh_events(Path::new("tests/local.osh"), &filter)).unwrap();
+        assert_eq!(events.len(), 5);
+    }
+
+    #[test]
+    fn test_filter_session_id() {
+        let filter = EventFilter::new(Some(String::from("5ed2cbda-4821-4f00-8a67-468aaa301377")));
+        let events = aw!(load_osh_events(Path::new("tests/local.osh"), &filter)).unwrap();
+        assert_eq!(events.len(), 2);
     }
 }

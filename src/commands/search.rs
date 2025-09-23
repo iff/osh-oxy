@@ -1,20 +1,14 @@
 use chrono::Utc;
 use futures::future;
-use osh_oxy::{load_osh_events, osh_files, Event, Events};
+use osh_oxy::{load_osh_events, osh_files, Event, EventFilter, Events};
 use std::io::Write;
 use std::sync::mpsc;
 use std::thread;
 
-pub(crate) async fn invoke(
-    query: &str,
-    _session_id: Option<String>,
-    _session_start: Option<f32>,
-) -> anyhow::Result<()> {
+pub(crate) async fn invoke(query: &str, session_id: Option<String>) -> anyhow::Result<()> {
+    let filter = EventFilter::new(session_id);
     let (tx, rx) = mpsc::channel();
 
-    // needs sh to be able to use echo in preview
-    // TODO: --read0 --print0
-    // tty? or just produce output and pipe?
     let mut fzf = std::process::Command::new("sh")
                 .arg("-c")
                 .arg(format!("fzf --height=70% --min-height=10 --header=osh-oxy --tiebreak=index --delimiter=\x1f --preview-window=down:2:wrap --with-nth=1 --preview=\"printf '[%s] [%s]\\n%s' \"{{2}}\" \"{{3}}\" \"{{4}}\"\" --print-query --expect=enter --query={}", query))
@@ -25,13 +19,15 @@ pub(crate) async fn invoke(
 
     let mut stdin = fzf.stdin.take().expect("failed to open stdin");
 
-    // TODO maybe we don't need the join here?
     let oshs = osh_files();
-    let mut all = future::try_join_all(oshs.into_iter().map(load_osh_events))
-        .await?
-        .into_iter()
-        .flatten()
-        .collect::<Events>();
+    let mut all =
+        match future::try_join_all(oshs.into_iter().map(|f| load_osh_events(f, &filter))).await {
+            Ok(all) => all.into_iter().flatten().collect::<Events>(),
+            Err(e) => {
+                let _ = fzf.wait();
+                return Err(anyhow::anyhow!("{e}"));
+            }
+        };
 
     thread::spawn(move || {
         // TODO merge sort?

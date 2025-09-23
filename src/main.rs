@@ -17,16 +17,12 @@ enum Command {
         query: String,
         #[arg(long)]
         session_id: Option<String>,
-        #[arg(long)]
-        session_start: Option<f32>,
     },
     Sk {
         #[arg(long, default_value = "")]
         query: String,
         #[arg(long)]
         session_id: Option<String>,
-        #[arg(long)]
-        session_start: Option<f32>,
     },
     AppendEvent {
         #[arg(long)]
@@ -62,16 +58,10 @@ async fn main() -> anyhow::Result<()> {
         } => commands::append_event::invoke(
             starttime, &command, &folder, endtime, exit_code, &machine, &session,
         )?,
-        Command::Search {
-            query,
-            session_id,
-            session_start,
-        } => commands::search::invoke(&query, session_id, session_start).await?,
-        Command::Sk {
-            query,
-            session_id,
-            session_start,
-        } => commands::sk::invoke(&query, session_id, session_start).await?,
+        Command::Search { query, session_id } => {
+            commands::search::invoke(&query, session_id).await?
+        }
+        Command::Sk { query, session_id } => commands::sk::invoke(&query, session_id).await?,
     }
 
     Ok(())
