@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use futures::future;
 use osh_oxy::event::{load_osh_events, osh_files, EventFilter, Events};
@@ -5,6 +7,7 @@ use tokio_test::block_on;
 
 fn benchmark_load_osh_files(c: &mut Criterion) {
     let mut group = c.benchmark_group("load_osh_files");
+    group.measurement_time(Duration::from_secs_f64(16.0));
 
     // TODO need standalone files or generate them on the fly
     let filter = EventFilter::new(None);
