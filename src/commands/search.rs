@@ -20,8 +20,7 @@ pub(crate) async fn invoke(
     // tty? or just produce output and pipe?
     let mut fzf = std::process::Command::new("sh")
                 .arg("-c")
-                // FIXME previewing {4} somhow executes the command?
-                .arg(format!("fzf --height=70% --min-height=10 --header=osh-oxy --tiebreak=index --delimiter=\x1f --preview-window=down:2:wrap --with-nth=1 --preview=\"print -a \\[{{2}}\\] \\[{{3}}\\]\" --print-query --expect=enter --query={}", query))
+                .arg(format!("fzf --height=70% --min-height=10 --header=osh-oxy --tiebreak=index --delimiter=\x1f --preview-window=down:2:wrap --with-nth=1 --preview=\"printf '[%s] [%s]\\n%s' \"{{2}}\" \"{{3}}\" \"{{4}}\"\" --print-query --expect=enter --query={}", query))
                 .stdin(std::process::Stdio::piped())
                 .stdout(std::process::Stdio::piped())
                 .spawn()
