@@ -2,8 +2,10 @@
     - sorting
     - loading file
     - ...
+- use bind to switch between filtered and unfiltered
 - robust output parsing
 - support different ways of merging/sorting history search
 - splitting lib up in different formats (when adding more)
+x no value when ctrl-c
 x fix search args (session-id/time filter)
 x use rust native fzf library?

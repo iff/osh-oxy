@@ -1,7 +1,7 @@
 use futures::future;
 use osh_oxy::{load_osh_events, osh_files, EventFilter, Events};
 use skim::{
-    prelude::{unbounded, SkimOptionsBuilder},
+    prelude::{unbounded, Key, SkimOptionsBuilder},
     RankCriteria, Skim, SkimItemReceiver, SkimItemSender,
 };
 use std::{sync::Arc, thread};
@@ -26,6 +26,11 @@ pub(crate) async fn invoke(query: &str, session_id: Option<String>) -> anyhow::R
         .preview(Some(String::new()))
         .multi(false)
         .query(Some(query.to_string()))
+        .bind(vec![
+            String::from("Enter:accept"),
+            String::from("esc:abort"),
+            String::from("ctrl-c:abort"),
+        ])
         .build()?;
 
     let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
@@ -44,11 +49,19 @@ pub(crate) async fn invoke(query: &str, session_id: Option<String>) -> anyhow::R
         drop(tx_item);
     });
 
-    let selected_items = Skim::run_with(&options, Some(rx_item))
-        .map(|out| out.selected_items)
-        .unwrap_or_default();
+    if let Some(out) = Skim::run_with(&options, Some(rx_item)) {
+        match out.final_key {
+            Key::ESC | Key::Ctrl('c') => return Ok(()),
+            Key::Enter => {
+                let item = out
+                    .selected_items
+                    .first()
+                    .ok_or(anyhow::anyhow!("nothing selected"))?;
+                println!("{}", item.output());
+            }
+            _ => (),
+        }
+    };
 
-    let item = selected_items.first().expect("expects one selected item");
-    println!("{}", item.output());
     Ok(())
 }
