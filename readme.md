@@ -1,6 +1,6 @@
 # osh-oxy
 
-- simple shell history fzf search using our own format
+- simple fuzzy shell history search using our own format
 - a Rust reimplementation of our [one-shell-history](https://github.com/dkuettel/one-shell-history)
 - append to osh history file
 - search all \*.osh history files with skim
