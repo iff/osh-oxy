@@ -18,7 +18,7 @@ enum Command {
         #[arg(long)]
         session_id: Option<String>,
         #[arg(long)]
-        session_start: Option<f32>,
+        session_start: Option<i64>,
     },
     Sk {
         #[arg(long, default_value = "")]
@@ -26,7 +26,7 @@ enum Command {
         #[arg(long)]
         session_id: Option<String>,
         #[arg(long)]
-        session_start: Option<f32>,
+        session_start: Option<i64>,
     },
     AppendEvent {
         #[arg(long)]

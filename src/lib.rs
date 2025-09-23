@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local, TimeZone, Utc};
+use chrono::{DateTime, Local, Utc};
 use glob::glob;
 use serde::{Deserialize, Serialize};
 use serde_jsonlines::AsyncJsonLinesReader;
@@ -75,13 +75,14 @@ impl Entry {
 
 pub type Entries = Vec<Entry>;
 
+// TODO maybe later something more generic
 pub struct EventFilter {
     session_id: Option<String>,
-    session_start: Option<f32>,
+    session_start: Option<i64>,
 }
 
 impl EventFilter {
-    pub fn new(session_id: Option<String>, session_start: Option<f32>) -> Self {
+    pub fn new(session_id: Option<String>, session_start: Option<i64>) -> Self {
         Self {
             session_id,
             session_start,
@@ -105,7 +106,8 @@ impl EventFilter {
         match &self.session_start {
             None => {}
             Some(session_start) => {
-                let start = Utc.timestamp_nanos((session_start * 1e9) as i64);
+                // TODO timezone correct here?
+                let start = DateTime::from_timestamp(*session_start, 0).expect("invalid timestamp");
                 if event.timestamp < start {
                     return None;
                 }
@@ -145,7 +147,7 @@ pub fn osh_files() -> Vec<PathBuf> {
 }
 
 #[cfg(test)]
-mod serach {
+mod test {
     use super::*;
     use std::path::Path;
 
@@ -158,7 +160,26 @@ mod serach {
     #[test]
     fn test_parsing_osh_file() {
         let filter = EventFilter::new(None, None);
-        let events = aw!(load_osh_events(Path::new("tests/local.osh"), &filter));
-        assert!(events.expect("failed").len() == 5);
+        let events = aw!(load_osh_events(Path::new("tests/local.osh"), &filter)).unwrap();
+        assert_eq!(events.len(), 5);
+    }
+
+    #[test]
+    fn test_filter_session_id() {
+        let filter = EventFilter::new(
+            Some(String::from("5ed2cbda-4821-4f00-8a67-468aaa301377")),
+            None,
+        );
+        let events = aw!(load_osh_events(Path::new("tests/local.osh"), &filter)).unwrap();
+        assert_eq!(events.len(), 2);
+    }
+
+    #[test]
+    fn test_filter_session_start() {
+        let timestamp = "2023-09-23T08:30:00+02:00";
+        let dt = DateTime::parse_from_str(timestamp, "%Y-%m-%dT%H:%M:%S%z").unwrap();
+        let filter = EventFilter::new(None, Some(dt.timestamp()));
+        let events = aw!(load_osh_events(Path::new("tests/local.osh"), &filter)).unwrap();
+        assert_eq!(events.len(), 3);
     }
 }

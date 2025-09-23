@@ -8,7 +8,7 @@ use std::thread;
 pub(crate) async fn invoke(
     query: &str,
     session_id: Option<String>,
-    session_start: Option<f32>,
+    session_start: Option<i64>,
 ) -> anyhow::Result<()> {
     let filter = EventFilter::new(session_id, session_start);
     let (tx, rx) = mpsc::channel();
