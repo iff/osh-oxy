@@ -1,31 +1,9 @@
-use chrono::Utc;
+use chrono::{DateTime, Local, TimeZone, Utc};
 use futures::future;
-use glob::glob;
-use osh_oxy::{Entry, Event, Events};
-use serde_jsonlines::AsyncJsonLinesReader;
-use std::io::Result;
+use osh_oxy::{load_osh_events, osh_files, Event, Events};
 use std::io::Write;
-use std::path::Path;
 use std::sync::mpsc;
 use std::thread;
-use tokio::fs::File;
-use tokio::io::BufReader;
-use tokio_stream::StreamExt;
-
-async fn load_osh_events(osh_file: impl AsRef<Path>) -> Result<Events> {
-    let fp = BufReader::new(File::open(osh_file).await?);
-    let reader = AsyncJsonLinesReader::new(fp);
-    let events = reader
-        .read_all::<Entry>()
-        .collect::<std::io::Result<Vec<_>>>()
-        .await;
-
-    events.map(|e| {
-        e.into_iter()
-            .filter_map(|v| v.as_event_or_none())
-            .collect::<Events>()
-    })
-}
 
 pub(crate) async fn invoke(
     query: &str,
@@ -42,8 +20,7 @@ pub(crate) async fn invoke(
     // tty? or just produce output and pipe?
     let mut fzf = std::process::Command::new("sh")
                 .arg("-c")
-                // FIXME previewing {4} somhow executes the command?
-                .arg(format!("fzf --height=70% --min-height=10 --header=osh-oxy --tiebreak=index --delimiter=\x1f --preview-window=down:10:wrap --with-nth=1 --preview=\"print -a \\[{{2}}\\] \\[{{3}}\\]\" --print-query --expect=enter --query={}", query))
+                .arg(format!("fzf --height=70% --min-height=10 --header=osh-oxy --tiebreak=index --delimiter=\x1f --preview-window=down:2:wrap --with-nth=1 --preview=\"printf '[%s] [%s]\\n%s' \"{{2}}\" \"{{3}}\" \"{{4}}\"\" --print-query --expect=enter --query={}", query))
                 .stdin(std::process::Stdio::piped())
                 .stdout(std::process::Stdio::piped())
                 .spawn()
@@ -51,15 +28,13 @@ pub(crate) async fn invoke(
 
     let mut stdin = fzf.stdin.take().expect("failed to open stdin");
 
-    let home = home::home_dir().expect("no home dir found");
-    let oshs = glob((home.to_str().expect("").to_owned() + "/.osh/*/*.osh").as_str())?;
-
     // TODO maybe we don't need the join here?
-    let mut all = future::try_join_all(oshs.map(|p| load_osh_events(p.expect(""))))
+    let oshs = osh_files();
+    let mut all = future::try_join_all(oshs.into_iter().map(load_osh_events))
         .await?
         .into_iter()
         .flatten()
-        .collect::<Vec<Event>>();
+        .collect::<Events>();
 
     thread::spawn(move || {
         // TODO merge sort?
@@ -119,22 +94,4 @@ pub(crate) async fn invoke(
     );
 
     Ok(())
-}
-
-#[cfg(test)]
-mod serach {
-    use super::*;
-    use std::path::Path;
-
-    macro_rules! aw {
-        ($e:expr) => {
-            tokio_test::block_on($e)
-        };
-    }
-
-    #[test]
-    fn test_parsing_osh_file() {
-        let events = aw!(load_osh_events(Path::new("tests/local.osh")));
-        assert!(events.expect("failed").len() == 5);
-    }
 }

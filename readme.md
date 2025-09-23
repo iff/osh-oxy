@@ -33,11 +33,3 @@ osh-oxy = {
   flake = true;
 }
 ```
-
-## todo
-
-- robust output parsing
-- fix preview
-- fix search args (session-id/time filter)
-- support different ways of merging/sorting history search
-- use rust native fzf library?
