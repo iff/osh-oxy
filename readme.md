@@ -7,6 +7,7 @@ what works:
 
 - append to osh history file - format will change soon
 - search all \*.osh history files with fzf
+- sk (command) replaces fzf with skim
 
 what is not supported yet:
 
@@ -14,7 +15,7 @@ what is not supported yet:
 
 ## dependencies
 
-- fzf
+- fzf (only for search command)
 
 ## installation (nix flake)
 

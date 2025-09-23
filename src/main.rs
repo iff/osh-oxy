@@ -20,6 +20,14 @@ enum Command {
         #[arg(long)]
         session_start: Option<f32>,
     },
+    Sk {
+        #[arg(long, default_value = "")]
+        query: String,
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        session_start: Option<f32>,
+    },
     AppendEvent {
         #[arg(long)]
         starttime: f64,
@@ -59,6 +67,11 @@ async fn main() -> anyhow::Result<()> {
             session_id,
             session_start,
         } => commands::search::invoke(&query, session_id, session_start).await?,
+        Command::Sk {
+            query,
+            session_id,
+            session_start,
+        } => commands::sk::invoke(&query, session_id, session_start).await?,
     }
 
     Ok(())
