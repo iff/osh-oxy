@@ -1,6 +1,6 @@
+use crate::event::{load_osh_events, osh_files, Event, EventFilter, Events};
 use chrono::Utc;
 use futures::future;
-use osh_oxy::{load_osh_events, osh_files, Event, EventFilter, Events};
 use std::io::Write;
 use std::sync::mpsc;
 use std::thread;

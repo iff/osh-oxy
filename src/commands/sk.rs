@@ -1,10 +1,34 @@
+use crate::event::{load_osh_events, osh_files, Event, EventFilter, Events};
+use chrono::Utc;
 use futures::future;
-use osh_oxy::{load_osh_events, osh_files, EventFilter, Events};
 use skim::{
     prelude::{unbounded, Key, SkimOptionsBuilder},
     RankCriteria, Skim, SkimItemReceiver, SkimItemSender,
 };
+use skim::{ItemPreview, PreviewContext, SkimItem};
+use std::borrow::Cow;
 use std::{sync::Arc, thread};
+
+impl SkimItem for Event {
+    fn text(&self) -> Cow<'_, str> {
+        let f = timeago::Formatter::new();
+        let ago = f.convert_chrono(self.timestamp, Utc::now());
+        Cow::Owned(format!("{ago} --- {}", self.command))
+    }
+
+    fn output(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.command)
+    }
+
+    fn preview(&self, _context: PreviewContext) -> ItemPreview {
+        let f = timeago::Formatter::new();
+        let ago = f.convert_chrono(self.timestamp, Utc::now());
+        ItemPreview::Text(format!(
+            "[{}] [exit_code={}]\n{}",
+            ago, self.exit_code, self.command
+        ))
+    }
+}
 
 pub(crate) async fn invoke(query: &str, session_id: Option<String>) -> anyhow::Result<()> {
     let oshs = osh_files();

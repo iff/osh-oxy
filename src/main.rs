@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 
 pub(crate) mod commands;
+pub(crate) mod event;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

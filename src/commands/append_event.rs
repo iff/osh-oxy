@@ -1,6 +1,6 @@
+use crate::event::{Entry, Event, Format};
 use anyhow::Context;
 use chrono::{TimeZone, Utc};
-use osh_oxy::{Entry, Event, Format};
 use serde_jsonlines::append_json_lines;
 
 pub(crate) fn invoke(
