@@ -49,6 +49,6 @@ pub(crate) async fn invoke(query: &str, session_id: Option<String>) -> anyhow::R
         .unwrap_or_default();
 
     let item = selected_items.first().expect("expects one selected item");
-    println!("{}", item.text());
+    println!("{}", item.output());
     Ok(())
 }

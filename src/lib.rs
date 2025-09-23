@@ -34,6 +34,12 @@ pub type Events = Vec<Event>;
 
 impl SkimItem for Event {
     fn text(&self) -> Cow<'_, str> {
+        let f = timeago::Formatter::new();
+        let ago = f.convert_chrono(self.timestamp, Utc::now());
+        Cow::Owned(format!("{ago} --- {}", self.command))
+    }
+
+    fn output(&self) -> Cow<'_, str> {
         Cow::Borrowed(&self.command)
     }
 
