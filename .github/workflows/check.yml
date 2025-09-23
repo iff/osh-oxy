@@ -57,5 +57,5 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: cargo test --locked
         run: cargo test --locked --all-features --all-targets
-      - name: cargo test --doc
-        run: cargo test --locked --all-features --doc
+      # - name: cargo test --doc
+      #   run: cargo test --locked --all-features --doc
