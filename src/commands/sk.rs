@@ -6,14 +6,10 @@ use skim::{
 };
 use std::{sync::Arc, thread};
 
-pub(crate) async fn invoke(
-    query: &str,
-    session_id: Option<String>,
-    session_start: Option<i64>,
-) -> anyhow::Result<()> {
+pub(crate) async fn invoke(query: &str, session_id: Option<String>) -> anyhow::Result<()> {
     let oshs = osh_files();
     // TODO filter here and in parallel?
-    let filter = EventFilter::new(session_id, session_start);
+    let filter = EventFilter::new(session_id);
     let mut all = future::try_join_all(oshs.into_iter().map(|f| load_osh_events(f, &filter)))
         .await?
         .into_iter()

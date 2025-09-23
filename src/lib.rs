@@ -78,37 +78,18 @@ pub type Entries = Vec<Entry>;
 // TODO maybe later something more generic
 pub struct EventFilter {
     session_id: Option<String>,
-    session_start: Option<i64>,
 }
 
 impl EventFilter {
-    pub fn new(session_id: Option<String>, session_start: Option<i64>) -> Self {
-        Self {
-            session_id,
-            session_start,
-        }
+    pub fn new(session_id: Option<String>) -> Self {
+        Self { session_id }
     }
 
     pub fn apply(&self, event: Event) -> Option<Event> {
-        if self.session_id.is_none() && self.session_start.is_none() {
-            return Some(event);
-        }
-
         match &self.session_id {
             None => {}
             Some(session_id) => {
                 if event.session != *session_id {
-                    return None;
-                }
-            }
-        }
-
-        match &self.session_start {
-            None => {}
-            Some(session_start) => {
-                // TODO timezone correct here?
-                let start = DateTime::from_timestamp(*session_start, 0).expect("invalid timestamp");
-                if event.timestamp < start {
                     return None;
                 }
             }
@@ -159,27 +140,15 @@ mod test {
 
     #[test]
     fn test_parsing_osh_file() {
-        let filter = EventFilter::new(None, None);
+        let filter = EventFilter::new(None);
         let events = aw!(load_osh_events(Path::new("tests/local.osh"), &filter)).unwrap();
         assert_eq!(events.len(), 5);
     }
 
     #[test]
     fn test_filter_session_id() {
-        let filter = EventFilter::new(
-            Some(String::from("5ed2cbda-4821-4f00-8a67-468aaa301377")),
-            None,
-        );
+        let filter = EventFilter::new(Some(String::from("5ed2cbda-4821-4f00-8a67-468aaa301377")));
         let events = aw!(load_osh_events(Path::new("tests/local.osh"), &filter)).unwrap();
         assert_eq!(events.len(), 2);
-    }
-
-    #[test]
-    fn test_filter_session_start() {
-        let timestamp = "2023-09-23T08:30:00+02:00";
-        let dt = DateTime::parse_from_str(timestamp, "%Y-%m-%dT%H:%M:%S%z").unwrap();
-        let filter = EventFilter::new(None, Some(dt.timestamp()));
-        let events = aw!(load_osh_events(Path::new("tests/local.osh"), &filter)).unwrap();
-        assert_eq!(events.len(), 3);
     }
 }

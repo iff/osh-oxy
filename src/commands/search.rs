@@ -5,12 +5,8 @@ use std::io::Write;
 use std::sync::mpsc;
 use std::thread;
 
-pub(crate) async fn invoke(
-    query: &str,
-    session_id: Option<String>,
-    session_start: Option<i64>,
-) -> anyhow::Result<()> {
-    let filter = EventFilter::new(session_id, session_start);
+pub(crate) async fn invoke(query: &str, session_id: Option<String>) -> anyhow::Result<()> {
+    let filter = EventFilter::new(session_id);
     let (tx, rx) = mpsc::channel();
 
     let mut fzf = std::process::Command::new("sh")
