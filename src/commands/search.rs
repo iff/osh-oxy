@@ -1,15 +1,16 @@
 use chrono::Utc;
 use futures::future;
-use osh_oxy::{load_osh_events, osh_files, Event, Events};
+use osh_oxy::{load_osh_events, osh_files, Event, EventFilter, Events};
 use std::io::Write;
 use std::sync::mpsc;
 use std::thread;
 
 pub(crate) async fn invoke(
     query: &str,
-    _session_id: Option<String>,
-    _session_start: Option<f32>,
+    session_id: Option<String>,
+    session_start: Option<f32>,
 ) -> anyhow::Result<()> {
+    let filter = EventFilter::new(session_id, session_start);
     let (tx, rx) = mpsc::channel();
 
     // needs sh to be able to use echo in preview
@@ -27,7 +28,7 @@ pub(crate) async fn invoke(
 
     // TODO maybe we don't need the join here?
     let oshs = osh_files();
-    let mut all = future::try_join_all(oshs.into_iter().map(load_osh_events))
+    let mut all = future::try_join_all(oshs.into_iter().map(|f| load_osh_events(f, &filter)))
         .await?
         .into_iter()
         .flatten()

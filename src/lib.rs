@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local, Utc};
+use chrono::{DateTime, Local, TimeZone, Utc};
 use glob::glob;
 use serde::{Deserialize, Serialize};
 use serde_jsonlines::AsyncJsonLinesReader;
@@ -75,7 +75,51 @@ impl Entry {
 
 pub type Entries = Vec<Entry>;
 
-pub async fn load_osh_events(osh_file: impl AsRef<Path>) -> std::io::Result<Events> {
+pub struct EventFilter {
+    session_id: Option<String>,
+    session_start: Option<f32>,
+}
+
+impl EventFilter {
+    pub fn new(session_id: Option<String>, session_start: Option<f32>) -> Self {
+        Self {
+            session_id,
+            session_start,
+        }
+    }
+
+    pub fn apply(&self, event: Event) -> Option<Event> {
+        if self.session_id.is_none() && self.session_start.is_none() {
+            return Some(event);
+        }
+
+        match &self.session_id {
+            None => {}
+            Some(session_id) => {
+                if event.session != *session_id {
+                    return None;
+                }
+            }
+        }
+
+        match &self.session_start {
+            None => {}
+            Some(session_start) => {
+                let start = Utc.timestamp_nanos((session_start * 1e9) as i64);
+                if event.timestamp < start {
+                    return None;
+                }
+            }
+        }
+
+        Some(event)
+    }
+}
+
+pub async fn load_osh_events(
+    osh_file: impl AsRef<Path>,
+    filter: &EventFilter,
+) -> std::io::Result<Events> {
     let fp = BufReader::new(File::open(osh_file).await?);
     let reader = AsyncJsonLinesReader::new(fp);
     let events = reader
@@ -86,6 +130,7 @@ pub async fn load_osh_events(osh_file: impl AsRef<Path>) -> std::io::Result<Even
     events.map(|e| {
         e.into_iter()
             .filter_map(|v| v.as_event_or_none())
+            .filter_map(|v| filter.apply(v))
             .collect::<Events>()
     })
 }
@@ -112,7 +157,8 @@ mod serach {
 
     #[test]
     fn test_parsing_osh_file() {
-        let events = aw!(load_osh_events(Path::new("tests/local.osh")));
+        let filter = EventFilter::new(None, None);
+        let events = aw!(load_osh_events(Path::new("tests/local.osh"), &filter));
         assert!(events.expect("failed").len() == 5);
     }
 }

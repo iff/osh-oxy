@@ -1,5 +1,5 @@
 use futures::future;
-use osh_oxy::{load_osh_events, osh_files, Events};
+use osh_oxy::{load_osh_events, osh_files, EventFilter, Events};
 use skim::{
     prelude::{unbounded, SkimOptionsBuilder},
     RankCriteria, Skim, SkimItemReceiver, SkimItemSender,
@@ -8,11 +8,13 @@ use std::{sync::Arc, thread};
 
 pub(crate) async fn invoke(
     query: &str,
-    _session_id: Option<String>,
-    _session_start: Option<f32>,
+    session_id: Option<String>,
+    session_start: Option<f32>,
 ) -> anyhow::Result<()> {
     let oshs = osh_files();
-    let mut all = future::try_join_all(oshs.into_iter().map(load_osh_events))
+    // TODO filter here and in parallel?
+    let filter = EventFilter::new(session_id, session_start);
+    let mut all = future::try_join_all(oshs.into_iter().map(|f| load_osh_events(f, &filter)))
         .await?
         .into_iter()
         .flatten()
