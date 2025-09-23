@@ -1,17 +1,13 @@
 # osh-oxy
 
 - simple shell history fzf search using our own format
-- a Rust reimplementation of https://github.com/dkuettel/one-shell-history
+- a Rust reimplementation of our [one-shell-history](https://github.com/dkuettel/one-shell-history)
 
 what works:
 
 - append to osh history file - format will change soon
 - search all \*.osh history files with fzf
 - sk (command) replaces fzf with skim
-
-what is not supported yet:
-
-- filter by session id and other aggregation
 
 ## dependencies
 
