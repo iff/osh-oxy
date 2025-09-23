@@ -1,0 +1,8 @@
+- add profiling info for various parts to figure out which improvements might speed up startup time
+    - sorting
+    - loading file
+    - ...
+- robust output parsing
+- fix search args (session-id/time filter)
+- support different ways of merging/sorting history search
+- use rust native fzf library?
