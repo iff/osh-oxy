@@ -1,7 +1,9 @@
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Local, Utc};
 use glob::glob;
 use serde::{Deserialize, Serialize};
 use serde_jsonlines::AsyncJsonLinesReader;
+use skim::{ItemPreview, PreviewContext, SkimItem};
+use std::borrow::Cow;
 use std::option::Option;
 use std::path::{Path, PathBuf};
 use tokio::fs::File;
@@ -29,6 +31,21 @@ pub struct Event {
 }
 
 pub type Events = Vec<Event>;
+
+impl SkimItem for Event {
+    fn text(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.command)
+    }
+
+    fn preview(&self, _context: PreviewContext) -> ItemPreview {
+        let f = timeago::Formatter::new();
+        let ago = f.convert_chrono(self.timestamp, Utc::now());
+        ItemPreview::Text(format!(
+            "[{}] [exit_code={}]\n{}",
+            ago, self.exit_code, self.command
+        ))
+    }
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(untagged)]
