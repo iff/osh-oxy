@@ -1,3 +1,2 @@
 pub(crate) mod append_event;
-pub(crate) mod search;
 pub(crate) mod sk;
