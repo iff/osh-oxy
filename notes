@@ -3,9 +3,10 @@
     - loading file
     - ...
 - use bind to switch between filtered and unfiltered
-- robust output parsing
-- support different ways of merging/sorting history search
+    - probably need a reload command (output to stdout) and bind that: `"tab:reload(osh-oxy reload --all)"`
 - splitting lib up in different formats (when adding more)
+c support different ways of merging/sorting history search
+x robust output parsing
 x no value when ctrl-c
 x fix search args (session-id/time filter)
 x use rust native fzf library?
