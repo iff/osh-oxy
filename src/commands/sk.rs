@@ -1,11 +1,10 @@
-use crate::event::{load_osh_events, osh_files, Event, EventFilter, Events};
+use crate::event::{Event, EventFilter, Events, load_osh_events, osh_files};
 use chrono::Utc;
 use futures::future;
 use skim::{
-    prelude::{unbounded, Key, SkimOptionsBuilder},
-    RankCriteria, Skim, SkimItemReceiver, SkimItemSender,
+    ItemPreview, PreviewContext, RankCriteria, Skim, SkimItem, SkimItemReceiver, SkimItemSender,
+    prelude::{Key, SkimOptionsBuilder, unbounded},
 };
-use skim::{ItemPreview, PreviewContext, SkimItem};
 use std::borrow::Cow;
 use std::{sync::Arc, thread};
 
