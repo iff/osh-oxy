@@ -39,5 +39,3 @@ I organise my osh files per host:
 │   └── xyz.osh
 └── local.osh -> active/host.osh
 ```
-
-Currently symlinks are ignored when searching.
