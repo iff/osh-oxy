@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.68"
+arbitrary = { version = "1", features = ["derive"] }
 chrono = { version = "0.4.31", features = ["serde"] }
 clap = { version = "4.0.32", features = ["derive"] }
 futures = "0.3.29"
@@ -26,4 +27,9 @@ criterion = "0.5"
 [[bench]]
 name = "load"
 path = "benches/load.rs"
+harness = false
+
+[[bench]]
+name = "sort"
+path = "benches/sorting.rs"
 harness = false

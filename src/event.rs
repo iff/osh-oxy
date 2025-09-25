@@ -1,4 +1,5 @@
-use chrono::{DateTime, Local};
+use arbitrary::{Arbitrary, Result, Unstructured};
+use chrono::{DateTime, Local, TimeZone, Utc};
 use glob::glob;
 use serde::{Deserialize, Serialize};
 use serde_jsonlines::AsyncJsonLinesReader;
@@ -26,6 +27,25 @@ pub struct Event {
     pub folder: String,
     pub machine: String,
     pub session: String,
+}
+
+impl<'a> Arbitrary<'a> for Event {
+    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+        // TOOD bounds?
+        let i: i64 = u.arbitrary()?;
+        let folder: PathBuf = u.arbitrary()?;
+        let machine_id: String = u.arbitrary()?;
+        let session_id: String = u.arbitrary()?;
+        Ok(Event {
+            timestamp: Utc.timestamp_nanos(i * 1_000_000_000).into(),
+            command: u.arbitrary()?,
+            duration: u.arbitrary()?,
+            exit_code: u.arbitrary()?,
+            folder: folder.to_string_lossy().to_string(),
+            machine: format!("machine_{machine_id}"),
+            session: format!("session_{session_id}"),
+        })
+    }
 }
 
 pub type Events = Vec<Event>;
