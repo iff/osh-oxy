@@ -1,3 +1,5 @@
+use std::fs;
+
 use crate::event::{Entry, Event, Format};
 use anyhow::Context;
 use chrono::{TimeZone, Utc};
@@ -14,7 +16,9 @@ pub(crate) fn invoke(
 ) -> anyhow::Result<()> {
     // TODO maybe use hostname later, for now use our own file
     let mut osh_file = home::home_dir().expect("home dir has to exist");
-    osh_file.push(".osh/local.osh");
+    osh_file.push(".osh/");
+    fs::create_dir_all(&osh_file)?;
+    osh_file.push("local.osh");
 
     if !osh_file.as_path().exists() {
         // TODO default header?
