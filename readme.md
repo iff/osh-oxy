@@ -26,3 +26,18 @@ osh-oxy = {
   flake = true;
 }
 ```
+
+## setup
+
+I organise my osh files per host:
+
+```
+.osh
+├── active
+│   ├── host.osh
+│   ├── name.osh
+│   └── xyz.osh
+└── local.osh -> active/host.osh
+```
+
+Currently symlinks are ignored when searching.
