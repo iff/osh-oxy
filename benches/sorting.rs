@@ -71,7 +71,7 @@ fn benchmark_kmerge_real_data(c: &mut Criterion) {
 
     group.bench_function("real osh data", |b| {
         b.iter(|| {
-            let iterators = all.clone().into_iter().map(|ev| ev.into_iter());
+            let iterators = all.clone().into_iter().map(|ev| ev.into_iter().rev());
             let result: Vec<_> = kmerge_by(iterators, |a: &Event, b: &Event| a > b).collect();
             black_box(result)
         });
@@ -144,7 +144,7 @@ fn benchmark_kmerge(c: &mut Criterion) {
                 b.iter_with_setup(
                     || create_presorted_files(num_files, events_per_file, true),
                     |presorted_files| {
-                        let iterators = presorted_files.into_iter().map(|ev| ev.into_iter());
+                        let iterators = presorted_files.into_iter().map(|ev| ev.into_iter().rev());
                         let result: Vec<_> =
                             kmerge_by(iterators, |a: &Event, b: &Event| a > b).collect();
                         black_box(result)

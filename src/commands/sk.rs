@@ -56,7 +56,7 @@ pub(crate) async fn invoke(query: &str, session_id: Option<String>) -> anyhow::R
     let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
 
     thread::spawn(move || {
-        let iterators = all.into_iter().map(|ev| ev.into_iter());
+        let iterators = all.into_iter().map(|ev| ev.into_iter().rev());
         for item in kmerge_by(iterators, |a: &Event, b: &Event| a > b) {
             let _ = tx_item.send(Arc::new(item));
         }
