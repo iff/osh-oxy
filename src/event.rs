@@ -123,10 +123,12 @@ pub async fn load_osh_events(
 
 pub fn osh_files() -> Vec<PathBuf> {
     let home = home::home_dir().expect("no home dir found");
-    let pattern = format!("{}/.osh/*/*.osh", home.to_str().expect(""));
+    let pattern = format!("{}/.osh/**/*.osh", home.to_str().expect(""));
+    // TODO should only ignore symlinks that point to files we are going to load anyway
     glob(&pattern)
         .expect("failed to read glob pattern")
         .filter_map(Result::ok)
+        .filter(|path| !path.is_symlink())
         .collect()
 }
 

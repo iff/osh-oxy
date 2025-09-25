@@ -1,6 +1,10 @@
 - bind execute command vs. insert
 - not clear which files are loaded
-    - should ignores symlinks but otherwise get all osh files
+    x should ignores symlinks but otherwise get all osh files
+    - should only ignore symlinks that point to files we are going to load anyway
+- look at binary formats or use my own
+    - https://capnproto.org/
+    - https://github.com/capnproto/capnproto-rust?tab=readme-ov-file
 - understand Rust pdqsort in detail and write better benchs
     - also look into glidesort: https://github.com/orlp/glidesort
 - use bind to switch between filtered and unfiltered

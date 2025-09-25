@@ -60,6 +60,12 @@ pub(crate) async fn invoke(query: &str, session_id: Option<String>) -> anyhow::R
         for item in kmerge_by(iterators, |a: &Event, b: &Event| a > b) {
             let _ = tx_item.send(Arc::new(item));
         }
+        // let iterators = all.into_iter().map(|ev| ev.into_iter()).flatten();
+        // let mut data: Vec<Event> = iterators.collect::<Vec<_>>();
+        // data.sort_by(|a, b| b.partial_cmp(a).unwrap());
+        // for item in data {
+        //     let _ = tx_item.send(Arc::new(item));
+        // }
 
         // notify skim to stop waiting for more
         drop(tx_item);
