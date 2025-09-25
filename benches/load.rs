@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use futures::future;
-use osh_oxy::event::{load_osh_events, osh_files, EventFilter, Events};
+use osh_oxy::event::{EventFilter, Events, load_osh_events, osh_files};
 use tokio_test::block_on;
 
 fn benchmark_load_osh_files(c: &mut Criterion) {

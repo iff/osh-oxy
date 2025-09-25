@@ -1,8 +1,8 @@
 use arbitrary::{Arbitrary, Unstructured};
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use futures::future;
 use itertools::kmerge_by;
-use osh_oxy::event::{load_osh_events, osh_files, Event, EventFilter, Events};
+use osh_oxy::event::{Event, EventFilter, Events, load_osh_events, osh_files};
 use tokio_test::block_on;
 
 fn create_test_events(size: usize) -> impl Iterator<Item = Event> {
