@@ -1,10 +1,11 @@
-- add profiling info for various parts to figure out which improvements might speed up startup time
-    - sorting
-    - loading file
-    - ...
+- understand Rust pdqsort in detail and write better benchs
 - use bind to switch between filtered and unfiltered
     - probably need a reload command (output to stdout) and bind that: `"tab:reload(osh-oxy reload --all)"`
 - splitting lib up in different formats (when adding more)
+x add profiling info for various parts to figure out which improvements might speed up startup time
+    x sorting
+    x loading file
+    x ...
 c support different ways of merging/sorting history search
 x robust output parsing
 x no value when ctrl-c
