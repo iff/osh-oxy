@@ -1,4 +1,5 @@
 - understand Rust pdqsort in detail and write better benchs
+    - also look into glidesort: https://github.com/orlp/glidesort
 - use bind to switch between filtered and unfiltered
     - probably need a reload command (output to stdout) and bind that: `"tab:reload(osh-oxy reload --all)"`
 - splitting lib up in different formats (when adding more)
