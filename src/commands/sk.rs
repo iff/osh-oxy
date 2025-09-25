@@ -41,6 +41,7 @@ pub(crate) async fn invoke(query: &str, session_id: Option<String>) -> anyhow::R
         .min_height(String::from("10"))
         .header(Some(String::from("osh-oxy")))
         .tiebreak(vec![RankCriteria::Index])
+        .no_sort(true)
         .delimiter(String::from("\x1f"))
         .preview_window(String::from("down:5"))
         .preview(Some(String::new()))
