@@ -1,6 +1,7 @@
 use arbitrary::{Arbitrary, Unstructured};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use futures::future;
+use itertools::kmerge_by;
 use osh_oxy::event::{load_osh_events, osh_files, Event, EventFilter, Events};
 use tokio_test::block_on;
 
@@ -47,6 +48,32 @@ fn benchmark_sort_real_data(c: &mut Criterion) {
         b.iter(|| {
             all.sort_by(|a, b| black_box(b.partial_cmp(a).unwrap()));
             black_box(all.clone())
+        });
+    });
+
+    group.finish();
+}
+
+fn benchmark_kmerge_real_data(c: &mut Criterion) {
+    let mut group = c.benchmark_group("kmerge_real");
+
+    let osh_files = osh_files();
+    if osh_files.is_empty() {
+        eprintln!("no .osh files found");
+        return;
+    }
+
+    let filter = EventFilter::new(None);
+    let all = block_on(future::try_join_all(
+        osh_files.into_iter().map(|f| load_osh_events(f, &filter)),
+    ))
+    .unwrap();
+
+    group.bench_function("real osh data", |b| {
+        b.iter(|| {
+            let iterators = all.clone().into_iter().map(|ev| ev.into_iter());
+            let result = kmerge_by(iterators, |a: &Event, b: &Event| a > b);
+            black_box(result)
         });
     });
 
@@ -103,10 +130,38 @@ fn benchmark_sort_unstable(c: &mut Criterion) {
     group.finish();
 }
 
+fn benchmark_kmerge(c: &mut Criterion) {
+    let mut group = c.benchmark_group("kmerge_arbitrary");
+    let num_files = 5;
+
+    for total_events in [100_000, 200_000].iter() {
+        let events_per_file = total_events / num_files;
+
+        group.bench_with_input(
+            format!("{total_events}_events_presorted"),
+            total_events,
+            |b, _| {
+                b.iter_with_setup(
+                    || create_presorted_files(num_files, events_per_file, true),
+                    |presorted_files| {
+                        let iterators = presorted_files.into_iter().map(|ev| ev.into_iter());
+                        let result = kmerge_by(iterators, |a: &Event, b: &Event| a > b);
+                        black_box(result)
+                    },
+                );
+            },
+        );
+    }
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     benchmark_sort_real_data,
+    benchmark_kmerge_real_data,
     benchmark_sort,
     benchmark_sort_unstable,
+    benchmark_kmerge,
 );
 criterion_main!(benches);
