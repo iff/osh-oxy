@@ -1,6 +1,7 @@
-use crate::event::{load_osh_events, osh_files, Event, EventFilter, Events};
+use crate::event::{load_osh_events, osh_files, Event, EventFilter};
 use chrono::Utc;
 use futures::future;
+use itertools::kmerge_by;
 use skim::{
     prelude::{unbounded, Key, SkimOptionsBuilder},
     RankCriteria, Skim, SkimItemReceiver, SkimItemSender,
@@ -34,11 +35,7 @@ pub(crate) async fn invoke(query: &str, session_id: Option<String>) -> anyhow::R
     let oshs = osh_files();
     // TODO filter here and in parallel?
     let filter = EventFilter::new(session_id);
-    let mut all = future::try_join_all(oshs.into_iter().map(|f| load_osh_events(f, &filter)))
-        .await?
-        .into_iter()
-        .flatten()
-        .collect::<Events>();
+    let all = future::try_join_all(oshs.into_iter().map(|f| load_osh_events(f, &filter))).await?;
 
     let options = SkimOptionsBuilder::default()
         .height(String::from("70%"))
@@ -60,13 +57,9 @@ pub(crate) async fn invoke(query: &str, session_id: Option<String>) -> anyhow::R
     let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
 
     thread::spawn(move || {
-        // TODO merge sort?
-        all.sort_by(|a, b| b.partial_cmp(a).unwrap());
-
-        // TODO batch?
-        let items: Vec<_> = all.into_iter().map(Arc::new).collect();
-        for item in items {
-            let _ = tx_item.send(item);
+        let iterators = all.into_iter().map(|ev| ev.into_iter());
+        for item in kmerge_by(iterators, |a: &Event, b: &Event| a > b) {
+            let _ = tx_item.send(Arc::new(item));
         }
 
         // notify skim to stop waiting for more
