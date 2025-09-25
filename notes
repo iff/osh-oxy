@@ -1,3 +1,4 @@
+- bind execute command vs. insert
 - not clear which files are loaded
     - should ignores symlinks but otherwise get all osh files
 - understand Rust pdqsort in detail and write better benchs
