@@ -3,6 +3,7 @@ use chrono::{DateTime, Local, TimeZone, Utc};
 use glob::glob;
 use serde::{Deserialize, Serialize};
 use serde_jsonlines::AsyncJsonLinesReader;
+use std::collections::HashSet;
 use std::option::Option;
 use std::path::{Path, PathBuf};
 use tokio::fs::File;
@@ -121,14 +122,14 @@ pub async fn load_osh_events(
     })
 }
 
-pub fn osh_files() -> Vec<PathBuf> {
+pub fn osh_files() -> HashSet<PathBuf> {
     let home = home::home_dir().expect("no home dir found");
     let pattern = format!("{}/.osh/**/*.osh", home.to_str().expect(""));
-    // TODO should only ignore symlinks that point to files we are going to load anyway
+
     glob(&pattern)
         .expect("failed to read glob pattern")
         .filter_map(Result::ok)
-        .filter(|path| !path.is_symlink())
+        .filter_map(|path| path.canonicalize().ok())
         .collect()
 }
 

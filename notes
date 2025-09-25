@@ -1,7 +1,4 @@
 - bind execute command vs. insert
-- not clear which files are loaded
-    x should ignores symlinks but otherwise get all osh files
-    - should only ignore symlinks that point to files we are going to load anyway
 - look at binary formats or use my own
     - https://capnproto.org/
     - https://github.com/capnproto/capnproto-rust?tab=readme-ov-file
@@ -10,6 +7,9 @@
 - use bind to switch between filtered and unfiltered
     - probably need a reload command (output to stdout) and bind that: `"tab:reload(osh-oxy reload --all)"`
 - splitting lib up in different formats (when adding more)
+x not clear which files are loaded
+    x should ignores symlinks but otherwise get all osh files
+    x should only ignore symlinks that point to files we are going to load anyway
 x add profiling info for various parts to figure out which improvements might speed up startup time
     x sorting
     x loading file
