@@ -3,14 +3,14 @@ name = "osh-oxy"
 version = "0.1.0"
 edition = "2024"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 anyhow = "1.0.68"
+arbitrary = { version = "1", features = ["derive"] }
 chrono = { version = "0.4.31", features = ["serde"] }
 clap = { version = "4.0.32", features = ["derive"] }
 futures = "0.3.29"
 glob = "0.3.1"
+itertools = "0.12"
 home = "0.5.5"
 serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0.79"
@@ -21,3 +21,16 @@ tokio-util = { version = "0.7.9", features = ["full"] }
 tokio-test = "*"
 tokio-stream = "*"
 timeago = "0.4.2"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "load"
+path = "benches/load.rs"
+harness = false
+
+[[bench]]
+name = "sort"
+path = "benches/sorting.rs"
+harness = false
