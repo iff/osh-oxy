@@ -21,6 +21,8 @@ tokio-util = { version = "0.7.9", features = ["full"] }
 tokio-test = "*"
 tokio-stream = "*"
 timeago = "0.4.2"
+ahash = "0.8.12"
+lru = "0.16.1"
 
 [dev-dependencies]
 criterion = "0.5"
