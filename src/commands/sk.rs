@@ -2,6 +2,10 @@ use crate::event::{Event, EventFilter, load_osh_events, osh_files};
 use chrono::Utc;
 use futures::future;
 use itertools::kmerge_by;
+use std::num::NonZero;
+use lru::LruCache;
+use ahash::AHasher;
+use std::hash::{Hash, Hasher};
 use skim::{
     ItemPreview, PreviewContext, RankCriteria, Skim, SkimItem, SkimItemReceiver, SkimItemSender,
     prelude::{Key, SkimOptionsBuilder, unbounded},
@@ -28,6 +32,12 @@ impl SkimItem for Event {
             ago, self.exit_code, self.command
         ))
     }
+}
+
+fn event_command_hash(s: &str) -> u64 {
+    let mut h = AHasher::default();
+    s.hash(&mut h);
+    h.finish()
 }
 
 pub(crate) async fn invoke(query: &str, session_id: Option<String>) -> anyhow::Result<()> {
@@ -58,8 +68,14 @@ pub(crate) async fn invoke(query: &str, session_id: Option<String>) -> anyhow::R
 
     thread::spawn(move || {
         let iterators = all.into_iter().map(|ev| ev.into_iter().rev());
+
+        let mut recently_seen_commands = LruCache::new(NonZero::new(500).unwrap());
+
         for item in kmerge_by(iterators, |a: &Event, b: &Event| a > b) {
-            let _ = tx_item.send(Arc::new(item));
+            let h = event_command_hash(&item.command);
+            if recently_seen_commands.put(h, ()).is_none() {
+                let _ = tx_item.send(Arc::new(item));
+            }
         }
 
         // notify skim to stop waiting for more
