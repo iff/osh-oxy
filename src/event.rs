@@ -62,9 +62,9 @@ pub enum Entry {
 }
 
 impl Entry {
-    pub fn as_event_or_none(&self) -> Option<Event> {
+    pub fn as_event_or_none(self) -> Option<Event> {
         match self {
-            Entry::EventE { event } => Some(event.clone()),
+            Entry::EventE { event } => Some(event),
             _ => None,
         }
     }
