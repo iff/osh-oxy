@@ -6,8 +6,7 @@ use serde_jsonlines::AsyncJsonLinesReader;
 use std::collections::HashSet;
 use std::option::Option;
 use std::path::{Path, PathBuf};
-use tokio::fs::File;
-use tokio::io::BufReader;
+use tokio::{fs::File, io::BufReader};
 use tokio_stream::StreamExt;
 
 // {"format": "osh-history-v1", "description": null}
@@ -62,19 +61,12 @@ pub enum Entry {
 }
 
 impl Entry {
-    pub fn as_event_or_none(self) -> Option<Event> {
+    pub fn maybe_event(self) -> Option<Event> {
         match self {
             Entry::EventE { event } => Some(event),
             _ => None,
         }
     }
-
-    // fn is_event(&self) -> bool {
-    //     match self {
-    //         Entry::EventE{_} => true,
-    //         _ => false,
-    //     }
-    // }
 }
 
 // pub type Entries = Vec<Entry>;
@@ -109,17 +101,15 @@ pub async fn load_osh_events(
 ) -> std::io::Result<Events> {
     let fp = BufReader::new(File::open(osh_file).await?);
     let reader = AsyncJsonLinesReader::new(fp);
-    let events = reader
-        .read_all::<Entry>()
-        .collect::<std::io::Result<Vec<_>>>()
-        .await;
 
-    events.map(|e| {
-        e.into_iter()
-            .filter_map(|v| v.as_event_or_none())
-            .filter_map(|v| filter.apply(v))
-            .collect::<Events>()
-    })
+    Ok(reader
+        .read_all::<Entry>()
+        .filter_map(|entry_result| match entry_result {
+            Ok(entry) => entry.maybe_event().and_then(|e| filter.apply(e)),
+            Err(_) => None,
+        })
+        .collect::<Events>()
+        .await)
 }
 
 pub fn osh_files() -> HashSet<PathBuf> {
