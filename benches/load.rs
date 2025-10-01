@@ -2,9 +2,9 @@ use std::time::Duration;
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use futures::future;
-use osh_oxy::event::{EventFilter, Events, load_osh_events, osh_files};
+use osh_oxy::event::{EventFilter, load_osh_events, osh_files};
 use std::hint::black_box;
-use tokio_test::block_on;
+use tokio::runtime::Runtime;
 
 fn benchmark_load_osh_files(c: &mut Criterion) {
     let mut group = c.benchmark_group("load_osh_files");
@@ -19,12 +19,12 @@ fn benchmark_load_osh_files(c: &mut Criterion) {
     }
 
     group.bench_function("load_all_files", |b| {
-        b.iter(|| {
-            let all_events = block_on(future::try_join_all(
-                osh_files.iter().map(|f| load_osh_events(f, &filter)),
-            ))
-            .expect("failed to load all files");
-            black_box(all_events.into_iter().flatten().collect::<Events>())
+        b.to_async(Runtime::new().unwrap()).iter(|| async {
+            let all_events =
+                future::try_join_all(osh_files.iter().map(|f| load_osh_events(f, &filter)))
+                    .await
+                    .expect("failed to load all files");
+            black_box(all_events)
         });
     });
 
