@@ -1,7 +1,9 @@
-use crate::event::{Event, EventFilter, load_osh_events, osh_files};
+use crate::event::{Event, EventFilter};
+use crate::json_lines;
 use chrono::Utc;
 use futures::future;
 use itertools::kmerge_by;
+use osh_oxy::osh_files;
 use skim::{
     ItemPreview, PreviewContext, RankCriteria, Skim, SkimItem, SkimItemReceiver, SkimItemSender,
     prelude::{Key, SkimOptionsBuilder, unbounded},
@@ -34,7 +36,11 @@ pub(crate) async fn invoke(query: &str, session_id: Option<String>) -> anyhow::R
     let oshs = osh_files();
     // TODO filter here and in parallel?
     let filter = EventFilter::new(session_id);
-    let all = future::try_join_all(oshs.into_iter().map(|f| load_osh_events(f, &filter))).await?;
+    let all = future::try_join_all(
+        oshs.into_iter()
+            .map(|f| json_lines::load_osh_events(f, &filter)),
+    )
+    .await?;
 
     let options = SkimOptionsBuilder::default()
         .height(String::from("70%"))

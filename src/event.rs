@@ -1,22 +1,10 @@
 use arbitrary::{Arbitrary, Result, Unstructured};
 use chrono::{DateTime, Local, TimeZone, Utc};
-use glob::glob;
 use serde::{Deserialize, Serialize};
-use serde_jsonlines::AsyncJsonLinesReader;
-use std::collections::HashSet;
 use std::option::Option;
-use std::path::{Path, PathBuf};
-use tokio::{fs::File, io::BufReader};
-use tokio_stream::StreamExt;
+use std::path::PathBuf;
 
-// {"format": "osh-history-v1", "description": null}
-#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub struct Format {
-    pub format: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-}
-
+/// the metadata we store for each history entry
 #[derive(Serialize, Deserialize, Clone, PartialEq, PartialOrd)]
 #[serde(rename_all = "kebab-case")]
 pub struct Event {
@@ -48,28 +36,9 @@ impl<'a> Arbitrary<'a> for Event {
     }
 }
 
+
+
 pub type Events = Vec<Event>;
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(untagged)]
-pub enum Entry {
-    // have to treat the event as untagged due to untagged Format
-    #[serde(rename(deserialize = "event"))]
-    EventE { event: Event },
-    #[serde(rename(deserialize = "format"))]
-    FormatE(Format),
-}
-
-impl Entry {
-    pub fn maybe_event(self) -> Option<Event> {
-        match self {
-            Entry::EventE { event } => Some(event),
-            _ => None,
-        }
-    }
-}
-
-// pub type Entries = Vec<Entry>;
 
 // TODO maybe later something more generic
 pub struct EventFilter {
@@ -95,36 +64,10 @@ impl EventFilter {
     }
 }
 
-pub async fn load_osh_events(
-    osh_file: impl AsRef<Path>,
-    filter: &EventFilter,
-) -> std::io::Result<Events> {
-    let fp = BufReader::new(File::open(osh_file).await?);
-    let reader = AsyncJsonLinesReader::new(fp);
-
-    Ok(reader
-        .read_all::<Entry>()
-        .filter_map(|entry_result| match entry_result {
-            Ok(entry) => entry.maybe_event().and_then(|e| filter.apply(e)),
-            Err(_) => None,
-        })
-        .collect::<Events>()
-        .await)
-}
-
-pub fn osh_files() -> HashSet<PathBuf> {
-    let home = home::home_dir().expect("no home dir found");
-    let pattern = format!("{}/.osh/**/*.osh", home.to_str().expect(""));
-
-    glob(&pattern)
-        .expect("failed to read glob pattern")
-        .filter_map(Result::ok)
-        .filter_map(|path| path.canonicalize().ok())
-        .collect()
-}
-
 #[cfg(test)]
 mod test {
+    use crate::json_lines;
+
     use super::*;
     use std::path::Path;
 
@@ -137,14 +80,22 @@ mod test {
     #[test]
     fn test_parsing_osh_file() {
         let filter = EventFilter::new(None);
-        let events = aw!(load_osh_events(Path::new("tests/local.osh"), &filter)).unwrap();
+        let events = aw!(json_lines::load_osh_events(
+            Path::new("tests/local.osh"),
+            &filter
+        ))
+        .unwrap();
         assert_eq!(events.len(), 5);
     }
 
     #[test]
     fn test_filter_session_id() {
         let filter = EventFilter::new(Some(String::from("5ed2cbda-4821-4f00-8a67-468aaa301377")));
-        let events = aw!(load_osh_events(Path::new("tests/local.osh"), &filter)).unwrap();
+        let events = aw!(json_lines::load_osh_events(
+            Path::new("tests/local.osh"),
+            &filter
+        ))
+        .unwrap();
         assert_eq!(events.len(), 2);
     }
 }

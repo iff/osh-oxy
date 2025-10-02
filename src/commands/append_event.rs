@@ -1,11 +1,10 @@
-use std::fs;
-
-use crate::event::{Entry, Event, Format};
+use crate::event::Event;
+use crate::json_lines::{Entry, JsonLinesHeader};
 use anyhow::Context;
 use chrono::{TimeZone, Utc};
-use serde_jsonlines::append_json_lines;
+use serde_jsonlines::AsyncJsonLinesWriter;
 
-pub(crate) fn invoke(
+pub(crate) async fn invoke(
     starttime: f64,
     command: &str,
     folder: &str,
@@ -14,22 +13,18 @@ pub(crate) fn invoke(
     machine: &str,
     session: &str,
 ) -> anyhow::Result<()> {
-    // TODO maybe use hostname later, for now use our own file
-    let mut osh_file = home::home_dir().expect("home dir has to exist");
+    let mut osh_file = home::home_dir().context("home dir has to exist")?;
     osh_file.push(".osh/");
-    fs::create_dir_all(&osh_file)?;
+    std::fs::create_dir_all(&osh_file)?;
     osh_file.push("local.osh");
 
+    // TODO how to write header only for a specific format?
+    let mut writer = AsyncJsonLinesWriter::new(tokio::fs::File::open(osh_file.as_path()).await?);
     if !osh_file.as_path().exists() {
-        // TODO default header?
-        append_json_lines(
-            osh_file.as_path(),
-            [Format {
-                format: String::from("osh-history-v1"),
-                description: None,
-            }],
-        )
-        .context("failed to serialise header")?;
+        writer
+            .write(&JsonLinesHeader::default())
+            .await
+            .context("serialising json lines header")?;
     }
 
     let e = Event {
@@ -41,8 +36,10 @@ pub(crate) fn invoke(
         machine: machine.to_string(),
         session: session.to_string(),
     };
-    append_json_lines(osh_file.as_path(), [Entry::EventE { event: e }])
-        .context("failed to serialise event")?;
+    writer
+        .write(&Entry::EventE { event: e })
+        .await
+        .context("serialising event")?;
 
     Ok(())
 }

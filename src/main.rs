@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 
 pub(crate) mod commands;
 pub(crate) mod event;
+pub(crate) mod json_lines;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -50,9 +51,12 @@ async fn main() -> anyhow::Result<()> {
             exit_code,
             machine,
             session,
-        } => commands::append_event::invoke(
-            starttime, &command, &folder, endtime, exit_code, &machine, &session,
-        )?,
+        } => {
+            commands::append_event::invoke(
+                starttime, &command, &folder, endtime, exit_code, &machine, &session,
+            )
+            .await?
+        }
         Command::Sk { query, session_id } => commands::sk::invoke(&query, session_id).await?,
     }
 
