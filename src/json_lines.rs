@@ -60,3 +60,22 @@ pub async fn load_osh_events(
         .collect::<Events>()
         .await)
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::path::Path;
+
+    macro_rules! aw {
+        ($e:expr) => {
+            tokio_test::block_on($e)
+        };
+    }
+
+    #[test]
+    fn test_parsing_osh_file() {
+        let filter = EventFilter::new(None);
+        let events = aw!(load_osh_events(Path::new("tests/local.osh"), &filter)).unwrap();
+        assert_eq!(events.len(), 5);
+    }
+}

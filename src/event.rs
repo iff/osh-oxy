@@ -78,17 +78,6 @@ mod test {
     }
 
     #[test]
-    fn test_parsing_osh_file() {
-        let filter = EventFilter::new(None);
-        let events = aw!(json_lines::load_osh_events(
-            Path::new("tests/local.osh"),
-            &filter
-        ))
-        .unwrap();
-        assert_eq!(events.len(), 5);
-    }
-
-    #[test]
     fn test_filter_session_id() {
         let filter = EventFilter::new(Some(String::from("5ed2cbda-4821-4f00-8a67-468aaa301377")));
         let events = aw!(json_lines::load_osh_events(
