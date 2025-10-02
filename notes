@@ -1,3 +1,6 @@
+- at the moment sorting is not correct for long running commands (we append to osh files after process completes):
+    - breaks invariant that files are pre-sorted
+    - only noticeable for very long running commands in "fresh entries" (where timeago is still fine grained)
 - bind execute command vs. insert
 - look at binary formats or use my own
     - https://capnproto.org/
