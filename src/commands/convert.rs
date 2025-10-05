@@ -1,5 +1,5 @@
-use crate::async_binary_writer::AsyncBinaryWriter;
 use crate::event::EventFilter;
+use crate::rmp::AsyncBinaryWriter;
 use anyhow::Context;
 use std::path::Path;
 use tokio::fs::File;

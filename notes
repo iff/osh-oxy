@@ -5,6 +5,7 @@
 - look at binary formats or use my own
     - https://capnproto.org/
     - https://github.com/capnproto/capnproto-rust?tab=readme-ov-file
+    - https://docs.rs/rmp-serde/latest/rmp_serde/
 - understand Rust pdqsort in detail and write better benchs
     - also look into glidesort: https://github.com/orlp/glidesort
 - use bind to switch between filtered and unfiltered

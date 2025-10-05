@@ -6,7 +6,6 @@ use serde::Serialize;
 use std::io::Result;
 use std::marker::Unpin;
 use std::path::Path;
-use std::pin::Pin;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt};
 use tokio::{fs::File, io::BufReader};
 
@@ -151,6 +150,7 @@ impl<R: AsyncRead + AsyncSeek> AsyncBinaryReader<R> {
     }
 }
 
+#[allow(dead_code)]
 pub async fn load_osh_events(
     osh_file: impl AsRef<Path>,
     filter: &EventFilter,
