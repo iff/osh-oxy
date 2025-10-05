@@ -12,6 +12,7 @@ futures = "0.3.29"
 glob = "0.3.1"
 itertools = "0.14"
 home = "0.5.5"
+pin-project = "*"
 serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0.79"
 serde-jsonlines = { version = "0.4.0", features = ["async"] }
@@ -24,6 +25,7 @@ timeago = "0.4.2"
 
 [dev-dependencies]
 criterion = { version = "0.6", features = ["async_tokio"] }
+tempfile = "*"
 
 [[bench]]
 name = "load"

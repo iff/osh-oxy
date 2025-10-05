@@ -1,7 +1,7 @@
 use std::{collections::HashSet, path::PathBuf};
 use glob::glob;
 
-// pub mod async_binary_writer;
+pub mod async_binary_writer;
 pub mod event;
 pub mod json_lines;
 

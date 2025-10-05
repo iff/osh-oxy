@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 
+pub(crate) mod async_binary_writer;
 pub(crate) mod commands;
 pub(crate) mod event;
 pub(crate) mod json_lines;
