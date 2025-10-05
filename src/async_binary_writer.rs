@@ -1,12 +1,14 @@
-use crate::event::Event;
+use crate::event::{Event, EventFilter, Events};
 use pin_project::pin_project;
 use rmp_serde::decode;
 use rmp_serde::encode::to_vec;
 use serde::Serialize;
 use std::io::Result;
 use std::marker::Unpin;
+use std::path::Path;
 use std::pin::Pin;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt};
+use tokio::{fs::File, io::BufReader};
 
 #[pin_project]
 #[derive(Debug)]
@@ -27,8 +29,11 @@ impl<W: AsyncWrite> AsyncBinaryWriter<W> {
         T: ?Sized + Serialize,
         W: Unpin,
     {
-        let mut buf = to_vec(value).expect("encoding value");
-        buf.extend(&(buf.len() as u64).to_le_bytes());
+        // let mut buf = to_vec(value).expect("encoding value");
+        // buf.extend(&(buf.len() as u64).to_le_bytes());
+        let data = to_vec(value).expect("encoding value");
+        let mut buf = (data.len() as u64).to_le_bytes().to_vec();
+        buf.extend(data);
         self.inner.write_all(&buf).await?;
         Ok(())
     }
@@ -77,6 +82,35 @@ impl<R: AsyncRead + AsyncSeek> AsyncBinaryReader<R> {
         R: Unpin,
     {
         let mut events = Vec::new();
+
+        loop {
+            let mut size_buf = [0u8; 8];
+            match self.inner.read_exact(&mut size_buf).await {
+                Ok(_) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => break,
+                Err(e) => return Err(e),
+            }
+
+            let event_size = u64::from_le_bytes(size_buf) as usize;
+            let mut event_buf = vec![0u8; event_size];
+            self.inner.read_exact(&mut event_buf).await?;
+
+            let event: Event = decode::from_slice(&event_buf)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+            events.push(event);
+        }
+
+        Ok(events)
+    }
+
+    // TODO this is slow due to all the seeks.. not sure we want to toy with this and just read and
+    // reverse after
+    #[allow(dead_code)]
+    pub async fn read_all_backward(&mut self) -> Result<Vec<Event>>
+    where
+        R: Unpin,
+    {
+        let mut events = Vec::new();
         let mut current_pos = self.seek(std::io::SeekFrom::End(0)).await?;
 
         while current_pos > 0 {
@@ -115,6 +149,21 @@ impl<R: AsyncRead + AsyncSeek> AsyncBinaryReader<R> {
 
         Ok(events)
     }
+}
+
+pub async fn load_osh_events(
+    osh_file: impl AsRef<Path>,
+    filter: &EventFilter,
+) -> std::io::Result<Events> {
+    let fp = BufReader::new(File::open(osh_file).await?);
+    let mut reader = AsyncBinaryReader::new(fp);
+
+    Ok(reader
+        .read_all()
+        .await?
+        .into_iter()
+        .filter_map(|event| filter.apply(event))
+        .collect::<Events>())
 }
 
 #[cfg(test)]
