@@ -5,7 +5,7 @@ use anyhow::Context;
 use std::path::Path;
 use tokio::fs::File;
 
-pub(crate) async fn invoke(path: &String) -> anyhow::Result<()> {
+pub async fn invoke(path: &String) -> anyhow::Result<()> {
     let path = Path::new(path);
     let filter = EventFilter::new(None);
     let events = json_lines::load_osh_events(path, &filter)

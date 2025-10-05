@@ -1,8 +1,9 @@
 use clap::{Parser, Subcommand};
 
-pub(crate) mod commands;
-pub(crate) mod event;
-pub(crate) mod formats;
+use osh_oxy::commands;
+use osh_oxy::event;
+use osh_oxy::formats;
+use osh_oxy::osh_files;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

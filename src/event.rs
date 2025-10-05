@@ -1,6 +1,8 @@
 use arbitrary::{Arbitrary, Result, Unstructured};
 use chrono::{DateTime, Local, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
+use skim::{ItemPreview, PreviewContext, SkimItem};
+use std::borrow::Cow;
 use std::option::Option;
 use std::path::PathBuf;
 
@@ -33,6 +35,27 @@ impl<'a> Arbitrary<'a> for Event {
             machine: format!("machine_{machine_id}"),
             session: format!("session_{session_id}"),
         })
+    }
+}
+
+impl SkimItem for Event {
+    fn text(&self) -> Cow<'_, str> {
+        let f = timeago::Formatter::new();
+        let ago = f.convert_chrono(self.timestamp, Utc::now());
+        Cow::Owned(format!("{ago} --- {}", self.command))
+    }
+
+    fn output(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.command)
+    }
+
+    fn preview(&self, _context: PreviewContext) -> ItemPreview {
+        let f = timeago::Formatter::new();
+        let ago = f.convert_chrono(self.timestamp, Utc::now());
+        ItemPreview::Text(format!(
+            "[{}] [exit_code={}]\n{}",
+            ago, self.exit_code, self.command
+        ))
     }
 }
 

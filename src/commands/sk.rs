@@ -1,39 +1,16 @@
 use crate::event::{Event, EventFilter};
-use crate::formats::json_lines;
-use chrono::Utc;
+use crate::formats::{Kind, json_lines};
+use crate::osh_files;
 use futures::future;
 use itertools::kmerge_by;
-use osh_oxy::osh_files;
 use skim::{
-    ItemPreview, PreviewContext, RankCriteria, Skim, SkimItem, SkimItemReceiver, SkimItemSender,
+    RankCriteria, Skim, SkimItemReceiver, SkimItemSender,
     prelude::{Key, SkimOptionsBuilder, unbounded},
 };
-use std::borrow::Cow;
 use std::{sync::Arc, thread};
 
-impl SkimItem for Event {
-    fn text(&self) -> Cow<'_, str> {
-        let f = timeago::Formatter::new();
-        let ago = f.convert_chrono(self.timestamp, Utc::now());
-        Cow::Owned(format!("{ago} --- {}", self.command))
-    }
-
-    fn output(&self) -> Cow<'_, str> {
-        Cow::Borrowed(&self.command)
-    }
-
-    fn preview(&self, _context: PreviewContext) -> ItemPreview {
-        let f = timeago::Formatter::new();
-        let ago = f.convert_chrono(self.timestamp, Utc::now());
-        ItemPreview::Text(format!(
-            "[{}] [exit_code={}]\n{}",
-            ago, self.exit_code, self.command
-        ))
-    }
-}
-
-pub(crate) async fn invoke(query: &str, session_id: Option<String>) -> anyhow::Result<()> {
-    let oshs = osh_files();
+pub async fn invoke(query: &str, session_id: Option<String>) -> anyhow::Result<()> {
+    let oshs = osh_files(Kind::JsonLines);
     // TODO filter here and in parallel?
     let filter = EventFilter::new(session_id);
     let all = future::try_join_all(

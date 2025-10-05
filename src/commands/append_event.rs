@@ -4,7 +4,7 @@ use anyhow::Context;
 use chrono::{TimeZone, Utc};
 use serde_jsonlines::AsyncJsonLinesWriter;
 
-pub(crate) async fn invoke(
+pub async fn invoke(
     starttime: f64,
     command: &str,
     folder: &str,
