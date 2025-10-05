@@ -15,12 +15,6 @@ struct Args {
 #[derive(Subcommand, Debug)]
 #[clap(rename_all = "kebab_case")]
 enum Command {
-    Sk {
-        #[arg(long, default_value = "")]
-        query: String,
-        #[arg(long)]
-        session_id: Option<String>,
-    },
     AppendEvent {
         #[arg(long)]
         starttime: f64,
@@ -36,6 +30,16 @@ enum Command {
         machine: String,
         #[arg(long)]
         session: String,
+    },
+    Convert {
+        #[arg(long)]
+        path: String,
+    },
+    Sk {
+        #[arg(long, default_value = "")]
+        query: String,
+        #[arg(long)]
+        session_id: Option<String>,
     },
 }
 
@@ -58,6 +62,7 @@ async fn main() -> anyhow::Result<()> {
             )
             .await?
         }
+        Command::Convert { path } => commands::convert::invoke(&path).await?,
         Command::Sk { query, session_id } => commands::sk::invoke(&query, session_id).await?,
     }
 
