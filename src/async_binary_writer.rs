@@ -104,7 +104,7 @@ impl<R: AsyncRead + AsyncSeek> AsyncBinaryReader<R> {
     }
 
     // TODO this is slow due to all the seeks.. not sure we want to toy with this and just read and
-    // reverse after
+    // reverse after (or memory map the file)
     #[allow(dead_code)]
     pub async fn read_all_backward(&mut self) -> Result<Vec<Event>>
     where
