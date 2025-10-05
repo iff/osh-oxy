@@ -2,8 +2,7 @@ use clap::{Parser, Subcommand};
 
 pub(crate) mod commands;
 pub(crate) mod event;
-pub(crate) mod json_lines;
-pub(crate) mod rmp;
+pub(crate) mod formats;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

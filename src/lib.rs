@@ -1,9 +1,8 @@
-use std::{collections::HashSet, path::PathBuf};
 use glob::glob;
+use std::{collections::HashSet, path::PathBuf};
 
 pub mod event;
-pub mod json_lines;
-pub mod rmp;
+pub mod formats;
 
 pub fn osh_files() -> HashSet<PathBuf> {
     let home = home::home_dir().expect("no home dir found");

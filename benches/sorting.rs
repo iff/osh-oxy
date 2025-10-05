@@ -3,7 +3,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use futures::future;
 use itertools::kmerge_by;
 use osh_oxy::event::{Event, EventFilter, Events};
-use osh_oxy::json_lines::load_osh_events;
+use osh_oxy::formats::json_lines::load_osh_events;
 use osh_oxy::osh_files;
 use std::hint::black_box;
 use tokio_test::block_on;

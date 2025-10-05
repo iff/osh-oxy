@@ -1,5 +1,6 @@
 use crate::event::EventFilter;
-use crate::rmp::AsyncBinaryWriter;
+use crate::formats::json_lines;
+use crate::formats::rmp::AsyncBinaryWriter;
 use anyhow::Context;
 use std::path::Path;
 use tokio::fs::File;
@@ -7,7 +8,7 @@ use tokio::fs::File;
 pub(crate) async fn invoke(path: &String) -> anyhow::Result<()> {
     let path = Path::new(path);
     let filter = EventFilter::new(None);
-    let events = crate::json_lines::load_osh_events(path, &filter)
+    let events = json_lines::load_osh_events(path, &filter)
         .await
         .context("Failed to load events from JSON lines file")?;
 

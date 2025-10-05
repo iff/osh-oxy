@@ -3,7 +3,7 @@ use std::time::Duration;
 use criterion::{Criterion, criterion_group, criterion_main};
 use futures::future;
 use osh_oxy::event::EventFilter;
-use osh_oxy::json_lines::load_osh_events;
+use osh_oxy::formats::{json_lines, rmp};
 use osh_oxy::osh_files;
 use std::hint::black_box;
 use tokio::runtime::Runtime;

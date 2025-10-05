@@ -1,5 +1,5 @@
 use crate::event::Event;
-use crate::json_lines::{Entry, JsonLinesHeader};
+use crate::format::json_lines::{Entry, JsonLinesHeader};
 use anyhow::Context;
 use chrono::{TimeZone, Utc};
 use serde_jsonlines::AsyncJsonLinesWriter;

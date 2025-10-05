@@ -1,5 +1,5 @@
 use crate::event::{Event, EventFilter};
-use crate::json_lines;
+use crate::formats::json_lines;
 use chrono::Utc;
 use futures::future;
 use itertools::kmerge_by;

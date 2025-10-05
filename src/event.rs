@@ -36,8 +36,6 @@ impl<'a> Arbitrary<'a> for Event {
     }
 }
 
-
-
 pub type Events = Vec<Event>;
 
 // TODO maybe later something more generic
@@ -66,7 +64,7 @@ impl EventFilter {
 
 #[cfg(test)]
 mod test {
-    use crate::json_lines;
+    use crate::formats::json_lines;
 
     use super::*;
     use std::path::Path;
