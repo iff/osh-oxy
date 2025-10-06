@@ -31,10 +31,7 @@ enum Command {
         #[arg(long)]
         session: String,
     },
-    Convert {
-        #[arg(long)]
-        path: String,
-    },
+    Convert {},
     Sk {
         #[arg(long, default_value = "")]
         query: String,
@@ -62,7 +59,7 @@ async fn main() -> anyhow::Result<()> {
             )
             .await?
         }
-        Command::Convert { path } => commands::convert::invoke(&path).await?,
+        Command::Convert {} => commands::convert::invoke().await?,
         Command::Sk { query, session_id } => commands::sk::invoke(&query, session_id).await?,
     }
 
