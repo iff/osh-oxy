@@ -43,7 +43,7 @@ pub(crate) async fn invoke(query: &str, session_id: Option<String>) -> anyhow::R
         .tiebreak(vec![RankCriteria::Index])
         .no_sort(true)
         .delimiter(String::from("\x1f"))
-        .preview_window(String::from("down:5"))
+        .preview_window(String::from("down:5:wrap"))
         .preview(Some(String::new()))
         .multi(false)
         .query(Some(query.to_string()))
