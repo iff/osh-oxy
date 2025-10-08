@@ -1,3 +1,5 @@
+use crate::formats::rmp::AsyncBinaryWriter;
+use anyhow::Context;
 use arbitrary::{Arbitrary, Result, Unstructured};
 use chrono::{DateTime, Local, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
@@ -5,6 +7,7 @@ use skim::{ItemPreview, PreviewContext, SkimItem};
 use std::borrow::Cow;
 use std::option::Option;
 use std::path::PathBuf;
+use tokio::io::AsyncWrite;
 
 /// the metadata we store for each history entry
 #[derive(Serialize, Deserialize, Clone, PartialEq, PartialOrd)]
@@ -17,6 +20,16 @@ pub struct Event {
     pub folder: String,
     pub machine: String,
     pub session: String,
+}
+
+impl Event {
+    pub async fn write<W: AsyncWrite + Unpin>(&self, writer: &mut AsyncBinaryWriter<W>) {
+        writer
+            .write(self)
+            .await
+            .context("serialising event")
+            .unwrap();
+    }
 }
 
 impl<'a> Arbitrary<'a> for Event {

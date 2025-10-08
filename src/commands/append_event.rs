@@ -1,8 +1,7 @@
 use crate::event::Event;
-use crate::format::json_lines::{Entry, JsonLinesHeader};
+use crate::formats::rmp::AsyncBinaryWriter;
 use anyhow::Context;
 use chrono::{TimeZone, Utc};
-use serde_jsonlines::AsyncJsonLinesWriter;
 
 pub async fn invoke(
     starttime: f64,
@@ -16,18 +15,12 @@ pub async fn invoke(
     let mut osh_file = home::home_dir().context("home dir has to exist")?;
     osh_file.push(".osh/");
     std::fs::create_dir_all(&osh_file)?;
-    osh_file.push("local.osh");
+    osh_file.push("local.bosh");
 
-    // TODO how to write header only for a specific format?
-    let mut writer = AsyncJsonLinesWriter::new(tokio::fs::File::open(osh_file.as_path()).await?);
-    if !osh_file.as_path().exists() {
-        writer
-            .write(&JsonLinesHeader::default())
-            .await
-            .context("serialising json lines header")?;
-    }
+    // TODO maybe write header
+    // let exists = osh_file.as_path().exists();
 
-    let e = Event {
+    let event = Event {
         timestamp: Utc.timestamp_nanos((starttime * 1e9) as i64).into(),
         command: command.to_string(),
         duration: (endtime - starttime) as f32,
@@ -36,10 +29,11 @@ pub async fn invoke(
         machine: machine.to_string(),
         session: session.to_string(),
     };
-    writer
-        .write(&Entry::EventE { event: e })
-        .await
-        .context("serialising event")?;
+
+    let file = tokio::fs::File::open(osh_file.as_path()).await?;
+    // NOTE or legacy format: AsyncJsonLinesWriter::new(file);
+    let mut writer = AsyncBinaryWriter::new(file);
+    event.write(&mut writer).await;
 
     Ok(())
 }
