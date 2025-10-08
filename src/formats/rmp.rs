@@ -28,8 +28,6 @@ impl<W: AsyncWrite> AsyncBinaryWriter<W> {
         T: ?Sized + Serialize,
         W: Unpin,
     {
-        // let mut buf = to_vec(value).expect("encoding value");
-        // buf.extend(&(buf.len() as u64).to_le_bytes());
         let data = to_vec(value).expect("encoding value");
         let mut buf = (data.len() as u64).to_le_bytes().to_vec();
         buf.extend(data);
@@ -98,53 +96,6 @@ impl<R: AsyncRead + AsyncSeek> AsyncBinaryReader<R> {
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
             events.push(event);
         }
-
-        Ok(events)
-    }
-
-    // TODO this is slow due to all the seeks.. not sure we want to toy with this and just read and
-    // reverse after (or memory map the file)
-    #[allow(dead_code)]
-    pub async fn read_all_backward(&mut self) -> Result<Vec<Event>>
-    where
-        R: Unpin,
-    {
-        let mut events = Vec::new();
-        let mut current_pos = self.seek(std::io::SeekFrom::End(0)).await?;
-
-        while current_pos > 0 {
-            // first read the 8-byte size suffix
-            if current_pos < 8 {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::UnexpectedEof,
-                    "Stream too short to contain size suffix",
-                ));
-            }
-
-            self.seek(std::io::SeekFrom::Start(current_pos - 8)).await?;
-            let mut size_buf = [0u8; 8];
-            self.read_exact(&mut size_buf).await?;
-            let event_size = u64::from_le_bytes(size_buf) as usize;
-
-            let event_start = current_pos
-                .checked_sub(8 + event_size as u64)
-                .ok_or_else(|| {
-                    std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid event size")
-                })?;
-
-            self.seek(std::io::SeekFrom::Start(event_start)).await?;
-
-            let mut event_buf = vec![0u8; event_size];
-            self.read_exact(&mut event_buf).await?;
-            let event: Event = decode::from_slice(&event_buf)
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-
-            events.push(event);
-
-            current_pos = event_start;
-        }
-
-        assert_eq!(current_pos, 0);
 
         Ok(events)
     }
