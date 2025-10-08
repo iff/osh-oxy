@@ -23,12 +23,12 @@ pub struct Event {
 }
 
 impl Event {
-    pub async fn write<W: AsyncWrite + Unpin>(&self, writer: &mut AsyncBinaryWriter<W>) {
-        writer
-            .write(self)
-            .await
-            .context("serialising event")
-            .unwrap();
+    pub async fn write<W: AsyncWrite + Unpin>(
+        &self,
+        writer: &mut AsyncBinaryWriter<W>,
+    ) -> anyhow::Result<()> {
+        writer.write(self).await.context("serialising event")?;
+        Ok(())
     }
 }
 

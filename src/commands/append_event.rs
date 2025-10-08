@@ -33,7 +33,7 @@ pub async fn invoke(
     let file = tokio::fs::File::open(osh_file.as_path()).await?;
     // NOTE or legacy format: AsyncJsonLinesWriter::new(file);
     let mut writer = AsyncBinaryWriter::new(file);
-    event.write(&mut writer).await;
+    event.write(&mut writer).await?;
 
     Ok(())
 }
