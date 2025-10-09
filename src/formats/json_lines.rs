@@ -1,10 +1,12 @@
 use serde::{Deserialize, Serialize};
-use serde_jsonlines::AsyncJsonLinesReader;
+use serde_jsonlines::{AsyncJsonLinesReader, AsyncJsonLinesWriter};
 use std::{option::Option, path::Path};
+use tokio::io::AsyncWrite;
 use tokio::{fs::File, io::BufReader};
 use tokio_stream::StreamExt;
 
 use crate::event::{Event, EventFilter, Events};
+use crate::formats::EventWriter;
 
 /// header of the json lines format.
 #[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -44,6 +46,40 @@ impl Entry {
     }
 }
 
+pub struct JsonLinesEventWriter<W: AsyncWrite> {
+    writer: AsyncJsonLinesWriter<W>,
+    header_written: bool,
+}
+
+impl<W: AsyncWrite + Unpin> JsonLinesEventWriter<W> {
+    pub fn new(writer: W, write_header: bool) -> Self {
+        Self {
+            writer: AsyncJsonLinesWriter::new(writer),
+            header_written: !write_header,
+        }
+    }
+}
+
+impl<W: AsyncWrite + Unpin + Send> EventWriter for JsonLinesEventWriter<W> {
+    async fn write(&mut self, event: &Event) -> anyhow::Result<()> {
+        if !self.header_written {
+            self.writer.write(&JsonLinesHeader::default()).await?;
+            self.header_written = true;
+        }
+        self.writer
+            .write(&Entry::EventE {
+                event: event.clone(),
+            })
+            .await?;
+        Ok(())
+    }
+
+    async fn flush(&mut self) -> anyhow::Result<()> {
+        self.writer.flush().await?;
+        Ok(())
+    }
+}
+
 pub async fn load_osh_events(
     osh_file: impl AsRef<Path>,
     filter: &EventFilter,
@@ -66,16 +102,11 @@ mod test {
     use super::*;
     use std::path::Path;
 
-    macro_rules! aw {
-        ($e:expr) => {
-            tokio_test::block_on($e)
-        };
-    }
-
-    #[test]
-    fn test_parsing_osh_file() {
+    #[tokio::test]
+    async fn test_parsing_osh_file() -> anyhow::Result<()> {
         let filter = EventFilter::new(None);
-        let events = aw!(load_osh_events(Path::new("tests/local.osh"), &filter)).unwrap();
+        let events = load_osh_events(Path::new("tests/local.osh"), &filter).await?;
         assert_eq!(events.len(), 5);
+        Ok(())
     }
 }

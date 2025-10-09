@@ -1,6 +1,6 @@
 use crate::event::EventFilter;
 use crate::formats::rmp::AsyncBinaryWriter;
-use crate::formats::{Kind, json_lines};
+use crate::formats::{EventWriter, Kind, json_lines};
 use crate::osh_files;
 use anyhow::Context;
 use tokio::fs::File;

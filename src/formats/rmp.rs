@@ -1,8 +1,8 @@
 use crate::event::{Event, EventFilter, Events};
+use crate::formats::EventWriter;
 use pin_project::pin_project;
 use rmp_serde::decode;
 use rmp_serde::encode::to_vec;
-use serde::Serialize;
 use std::io::Result;
 use std::marker::Unpin;
 use std::path::Path;
@@ -22,25 +22,18 @@ impl<W: AsyncWrite> AsyncBinaryWriter<W> {
     }
 }
 
-impl<W: AsyncWrite> AsyncBinaryWriter<W> {
-    pub async fn write<T>(&mut self, value: &T) -> Result<()>
-    where
-        T: ?Sized + Serialize,
-        W: Unpin,
-    {
-        let data = to_vec(value).expect("encoding value");
+impl<W: AsyncWrite + Unpin + Send> EventWriter for AsyncBinaryWriter<W> {
+    async fn write(&mut self, event: &Event) -> anyhow::Result<()> {
+        let data = to_vec(event).expect("encoding value");
         let mut buf = (data.len() as u64).to_le_bytes().to_vec();
         buf.extend(data);
         self.inner.write_all(&buf).await?;
         Ok(())
     }
 
-    #[allow(dead_code)]
-    pub async fn flush(&mut self) -> Result<()>
-    where
-        W: Unpin,
-    {
-        self.inner.flush().await
+    async fn flush(&mut self) -> anyhow::Result<()> {
+        self.inner.flush().await?;
+        Ok(())
     }
 }
 
@@ -125,29 +118,21 @@ mod tests {
     use tempfile::NamedTempFile;
 
     #[tokio::test]
-    async fn write_binary_event() -> Result<()> {
+    async fn write_binary_event() -> anyhow::Result<()> {
         let temp_file = NamedTempFile::new()?;
-        println!("{:?}", temp_file.path());
 
         let data = &[0; 1000];
         let mut u = Unstructured::new(data);
         let e = crate::event::Event::arbitrary(&mut u).unwrap();
 
-        let mut buffer = Vec::new();
-        AsyncBinaryWriter::new(&mut buffer).write(&e).await?;
-
-        println!("Written bytes: {:?}", buffer);
-        println!("Byte count: {}", buffer.len());
-
-        // AsyncBinaryWriter::new(tokio::fs::File::create(temp_file.path()).await?)
-        //     .write(&e)
-        //     .await?;
+        let mut writer = AsyncBinaryWriter::new(tokio::fs::File::create(temp_file.path()).await?);
+        e.write(&mut writer).await?;
 
         Ok(())
     }
 
     #[tokio::test]
-    async fn roundtrip_binary_event() -> Result<()> {
+    async fn roundtrip_binary_event() -> anyhow::Result<()> {
         let num_events = 30;
         let data = &[0; 300];
         let mut u = Unstructured::new(data);
@@ -158,7 +143,7 @@ mod tests {
 
         for _ in 0..num_events {
             let event = crate::event::Event::arbitrary(&mut u).unwrap();
-            writer.write(&event).await?;
+            event.write(&mut writer).await?;
             events.push(event);
         }
 
