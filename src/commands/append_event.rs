@@ -2,7 +2,7 @@ use std::fs;
 
 use crate::event::{Entry, Event, Format};
 use anyhow::Context;
-use chrono::{TimeZone, Utc};
+use chrono::DateTime;
 use serde_jsonlines::append_json_lines;
 
 pub(crate) fn invoke(
@@ -32,8 +32,8 @@ pub(crate) fn invoke(
         .context("failed to serialise header")?;
     }
 
-    let e = Event {
-        timestamp: Utc.timestamp_nanos((starttime * 1e9) as i64).into(),
+    let event = Event {
+        timestamp: DateTime::from_timestamp_nanos((starttime * 1e9) as i64).into(),
         command: command.to_string(),
         duration: (endtime - starttime) as f32,
         exit_code,
@@ -41,7 +41,7 @@ pub(crate) fn invoke(
         machine: machine.to_string(),
         session: session.to_string(),
     };
-    append_json_lines(osh_file.as_path(), [Entry::EventE { event: e }])
+    append_json_lines(osh_file.as_path(), [Entry::EventE { event }])
         .context("failed to serialise event")?;
 
     Ok(())

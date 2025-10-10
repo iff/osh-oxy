@@ -20,8 +20,10 @@ pub struct Format {
 #[derive(Serialize, Deserialize, Clone, PartialEq, PartialOrd)]
 #[serde(rename_all = "kebab-case")]
 pub struct Event {
+    /// start time of the event
     pub timestamp: DateTime<Local>,
     pub command: String,
+    /// duration in seconds with fractional nanoseconds (on linux)
     pub duration: f32,
     pub exit_code: i16,
     pub folder: String,
