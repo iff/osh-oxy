@@ -39,7 +39,7 @@ impl PartialOrd for Event {
 
 impl Event {
     pub fn endtime(&self) -> DateTime<Local> {
-        return self.timestamp + chrono::Duration::milliseconds((self.duration * 1000.0) as i64);
+        self.timestamp + chrono::Duration::milliseconds((self.duration * 1000.0) as i64)
     }
 }
 
