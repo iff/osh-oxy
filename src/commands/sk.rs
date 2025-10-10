@@ -12,7 +12,7 @@ use std::{sync::Arc, thread};
 impl SkimItem for Event {
     fn text(&self) -> Cow<'_, str> {
         let f = timeago::Formatter::new();
-        let ago = f.convert_chrono(self.timestamp, Utc::now());
+        let ago = f.convert_chrono(self.endtime(), Utc::now());
         Cow::Owned(format!("{ago} --- {}", self.command))
     }
 
@@ -22,7 +22,7 @@ impl SkimItem for Event {
 
     fn preview(&self, _context: PreviewContext) -> ItemPreview {
         let f = timeago::Formatter::new();
-        let ago = f.convert_chrono(self.timestamp, Utc::now());
+        let ago = f.convert_chrono(self.endtime(), Utc::now());
         ItemPreview::Text(format!(
             "[{}] [exit_code={}]\n{}",
             ago, self.exit_code, self.command
