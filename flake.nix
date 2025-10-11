@@ -44,7 +44,6 @@
         };
 
         nativeBuildInputs = [ pkgs.pkg-config ];
-        PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
       };
 
     in
@@ -52,17 +51,17 @@
     {
       packages = {
         app = app;
-        all = pkgs.symlinkJoin {
-          name = "all";
-          paths = [ pkgs.fzf app ];
-        };
-        default = packages.all;
+        default = app;
+      };
+
+      apps.default = {
+        type = "app";
+        program = "${app}/bin/osh-oxy";
       };
 
       devShells.default = pkgs.mkShell {
         nativeBuildInputs = with pkgs; [
           rustToolchain
-          openssl
           pkg-config
           cargo-deny
           cargo-edit
