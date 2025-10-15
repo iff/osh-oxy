@@ -1,7 +1,7 @@
 use crate::event::{Event, EventFilter, load_osh_events, osh_files};
 use chrono::Utc;
 use futures::future;
-use itertools::kmerge_by;
+use itertools::{Either, Itertools, kmerge_by};
 use skim::{
     ItemPreview, PreviewContext, RankCriteria, Skim, SkimItem, SkimItemReceiver, SkimItemSender,
     prelude::{Key, SkimOptionsBuilder, unbounded},
@@ -30,7 +30,11 @@ impl SkimItem for Event {
     }
 }
 
-pub(crate) async fn invoke(query: &str, session_id: Option<String>) -> anyhow::Result<()> {
+pub(crate) async fn invoke(
+    query: &str,
+    session_id: Option<String>,
+    unique: bool,
+) -> anyhow::Result<()> {
     let oshs = osh_files();
     // TODO filter here and in parallel?
     let filter = EventFilter::new(session_id);
@@ -58,7 +62,15 @@ pub(crate) async fn invoke(query: &str, session_id: Option<String>) -> anyhow::R
 
     thread::spawn(move || {
         let iterators = all.into_iter().map(|ev| ev.into_iter().rev());
-        for item in kmerge_by(iterators, |a: &Event, b: &Event| a > b) {
+        let items = if unique {
+            Either::Left(
+                kmerge_by(iterators, |a: &Event, b: &Event| a > b)
+                    .unique_by(|e: &Event| e.command.to_owned()),
+            )
+        } else {
+            Either::Right(kmerge_by(iterators, |a: &Event, b: &Event| a > b))
+        };
+        for item in items {
             let _ = tx_item.send(Arc::new(item));
         }
 
