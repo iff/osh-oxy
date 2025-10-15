@@ -55,7 +55,11 @@ async fn main() -> anyhow::Result<()> {
         } => commands::append_event::invoke(
             starttime, &command, &folder, endtime, exit_code, &machine, &session,
         )?,
-        Command::Sk { query, session_id, unique } => commands::sk::invoke(&query, session_id, unique).await?,
+        Command::Sk {
+            query,
+            session_id,
+            unique,
+        } => commands::sk::invoke(&query, session_id, unique).await?,
     }
 
     Ok(())
