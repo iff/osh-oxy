@@ -23,6 +23,13 @@ tokio-util = { version = "0.7.9", features = ["full"] }
 tokio-test = "*"
 tokio-stream = "*"
 timeago = "0.4.2"
+hotpath = { version = "0.4", optional = true }
+
+[features]
+hotpath = ["dep:hotpath", "hotpath/hotpath"]
+hotpath-alloc-bytes-total = ["hotpath/hotpath-alloc-bytes-total"]
+hotpath-alloc-count-total = ["hotpath/hotpath-alloc-count-total"]
+hotpath-off = ["hotpath/hotpath-off"]
 
 [dev-dependencies]
 criterion = { version = "0.6", features = ["async_tokio"] }

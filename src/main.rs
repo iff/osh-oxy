@@ -46,6 +46,7 @@ enum Command {
 }
 
 #[tokio::main]
+#[cfg_attr(feature = "hotpath", hotpath::main(percentiles = [99]))]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
