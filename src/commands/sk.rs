@@ -44,9 +44,11 @@ pub(crate) async fn invoke(
         .height(String::from("70%"))
         .min_height(String::from("10"))
         .header(Some(String::from("osh-oxy")))
+        // TODO seems to have no effect and strange tie breaking in some cases
+        // .tiebreak(vec![RankCriteria::NegIndex])
         .tiebreak(vec![RankCriteria::Index])
-        .no_sort(true)
-        .delimiter(String::from("\x1f"))
+        .delimiter(String::from("---"))
+        .nth(vec![String::from("2")])
         .preview_window(String::from("down:5:wrap"))
         .preview(Some(String::new()))
         .multi(false)
@@ -63,6 +65,7 @@ pub(crate) async fn invoke(
     thread::spawn(move || {
         let iterators = all.into_iter().map(|ev| ev.into_iter().rev());
         let items = if unique {
+            // FIXME keeps oldest when unique
             Either::Left(
                 kmerge_by(iterators, |a: &Event, b: &Event| a > b)
                     .unique_by(|e: &Event| e.command.to_owned()),
@@ -75,6 +78,7 @@ pub(crate) async fn invoke(
         }
 
         // notify skim to stop waiting for more
+        // NOTE it only displays once we signal stop..
         drop(tx_item);
     });
 
