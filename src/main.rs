@@ -13,6 +13,12 @@ struct Args {
 #[derive(Subcommand, Debug)]
 #[clap(rename_all = "kebab_case")]
 enum Command {
+    Cat {
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        unique: bool,
+    },
     Sk {
         #[arg(long, default_value = "")]
         query: String,
@@ -44,6 +50,7 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     match args.command {
+        Command::Cat { session_id, unique } => commands::cat::invoke(session_id, unique).await?,
         Command::AppendEvent {
             starttime,
             command,
