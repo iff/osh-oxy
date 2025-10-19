@@ -2,15 +2,16 @@ use crate::event::{Event, EventFilter};
 use crate::formats::{Kind, json_lines};
 use crate::osh_files;
 use futures::future;
-use itertools::kmerge_by;
+use itertools::{Either, Itertools, kmerge_by};
 use skim::{
     RankCriteria, Skim, SkimItemReceiver, SkimItemSender,
     prelude::{Key, SkimOptionsBuilder, unbounded},
 };
 use std::{sync::Arc, thread};
 
-pub async fn invoke(query: &str, session_id: Option<String>) -> anyhow::Result<()> {
+pub async fn invoke(query: &str, session_id: Option<String>, unique: bool) -> anyhow::Result<()> {
     let oshs = osh_files(Kind::JsonLines);
+
     // TODO filter here and in parallel?
     let filter = EventFilter::new(session_id);
     let all = future::try_join_all(
@@ -23,10 +24,12 @@ pub async fn invoke(query: &str, session_id: Option<String>) -> anyhow::Result<(
         .height(String::from("70%"))
         .min_height(String::from("10"))
         .header(Some(String::from("osh-oxy")))
+        // TODO seems to have no effect and strange tie breaking in some cases
+        // .tiebreak(vec![RankCriteria::NegIndex])
         .tiebreak(vec![RankCriteria::Index])
-        .no_sort(true)
-        .delimiter(String::from("\x1f"))
-        .preview_window(String::from("down:5"))
+        .delimiter(String::from("---"))
+        .nth(vec![String::from("2")])
+        .preview_window(String::from("down:5:wrap"))
         .preview(Some(String::new()))
         .multi(false)
         .query(Some(query.to_string()))
@@ -41,11 +44,21 @@ pub async fn invoke(query: &str, session_id: Option<String>) -> anyhow::Result<(
 
     thread::spawn(move || {
         let iterators = all.into_iter().map(|ev| ev.into_iter().rev());
-        for item in kmerge_by(iterators, |a: &Event, b: &Event| a > b) {
+        let items = if unique {
+            // FIXME keeps oldest when unique
+            Either::Left(
+                kmerge_by(iterators, |a: &Event, b: &Event| a > b)
+                    .unique_by(|e: &Event| e.command.to_owned()),
+            )
+        } else {
+            Either::Right(kmerge_by(iterators, |a: &Event, b: &Event| a > b))
+        };
+        for item in items {
             let _ = tx_item.send(Arc::new(item));
         }
 
         // notify skim to stop waiting for more
+        // NOTE it only displays once we signal stop..
         drop(tx_item);
     });
 

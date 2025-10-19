@@ -1,6 +1,3 @@
-- at the moment sorting is not correct for long running commands (we append to osh files after process completes):
-    - breaks invariant that files are pre-sorted
-    - only noticeable for very long running commands in "fresh entries" (where timeago is still fine grained)
 - bind execute command vs. insert
 - look at binary formats or use my own
     - https://capnproto.org/
@@ -11,6 +8,9 @@
 - use bind to switch between filtered and unfiltered
     - probably need a reload command (output to stdout) and bind that: `"tab:reload(osh-oxy reload --all)"`
 x splitting lib up in different formats (when adding more)
+x at the moment sorting is not correct for long running commands (we append to osh files after process completes)
+    - breaks invariant that files are pre-sorted
+    - only noticeable for very long running commands in "fresh entries" (where timeago is still fine grained)
 x not clear which files are loaded
     x should ignores symlinks but otherwise get all osh files
     x should only ignore symlinks that point to files we are going to load anyway

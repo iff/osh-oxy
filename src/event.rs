@@ -8,11 +8,13 @@ use std::option::Option;
 use std::path::PathBuf;
 
 /// the metadata we store for each history entry
-#[derive(Serialize, Deserialize, Clone, PartialEq, PartialOrd)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub struct Event {
+    /// start time of the event
     pub timestamp: DateTime<Local>,
     pub command: String,
+    /// duration in seconds with fractional nanoseconds (on linux)
     pub duration: f32,
     pub exit_code: i16,
     pub folder: String,
@@ -20,9 +22,18 @@ pub struct Event {
     pub session: String,
 }
 
+impl PartialOrd for Event {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.endtime().cmp(&other.endtime()))
+    }
+}
+
 impl Event {
     pub async fn write(&self, writer: &mut impl EventWriter) -> anyhow::Result<()> {
         writer.write(self).await
+    }
+    pub fn endtime(&self) -> DateTime<Local> {
+        self.timestamp + chrono::Duration::milliseconds((self.duration * 1000.0) as i64)
     }
 }
 
