@@ -2,7 +2,7 @@ use crate::formats::EventWriter;
 use arbitrary::{Arbitrary, Result, Unstructured};
 use chrono::{DateTime, Local, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
-use skim::{ItemPreview, PreviewContext, SkimItem};
+use skim::{AnsiString, DisplayContext, ItemPreview, PreviewContext, SkimItem};
 use std::borrow::Cow;
 use std::option::Option;
 use std::path::PathBuf;
@@ -58,9 +58,14 @@ impl<'a> Arbitrary<'a> for Event {
 
 impl SkimItem for Event {
     fn text(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.command)
+    }
+
+    fn display<'a>(&'a self, _context: DisplayContext<'a>) -> AnsiString<'a> {
+        // TODO context?
         let f = timeago::Formatter::new();
         let ago = f.convert_chrono(self.timestamp, Utc::now());
-        Cow::Owned(format!("{ago} --- {}", self.command))
+        AnsiString::new_string(format!("{ago} --- {}", self.command), Vec::new())
     }
 
     fn output(&self) -> Cow<'_, str> {

@@ -24,11 +24,7 @@ pub async fn invoke(query: &str, session_id: Option<String>, unique: bool) -> an
         .height(String::from("70%"))
         .min_height(String::from("10"))
         .header(Some(String::from("osh-oxy")))
-        // TODO seems to have no effect and strange tie breaking in some cases
-        // .tiebreak(vec![RankCriteria::NegIndex])
         .tiebreak(vec![RankCriteria::Index])
-        .delimiter(String::from("---"))
-        .nth(vec![String::from("2")])
         .preview_window(String::from("down:5:wrap"))
         .preview(Some(String::new()))
         .multi(false)
