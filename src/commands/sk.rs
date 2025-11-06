@@ -3,7 +3,8 @@ use chrono::Utc;
 use futures::future;
 use itertools::{Either, Itertools, kmerge_by};
 use skim::{
-    ItemPreview, PreviewContext, RankCriteria, Skim, SkimItem, SkimItemReceiver, SkimItemSender,
+    AnsiString, DisplayContext, ItemPreview, PreviewContext, RankCriteria, Skim, SkimItem,
+    SkimItemReceiver, SkimItemSender,
     prelude::{Key, SkimOptionsBuilder, unbounded},
 };
 use std::borrow::Cow;
@@ -11,9 +12,14 @@ use std::{sync::Arc, thread};
 
 impl SkimItem for Event {
     fn text(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.command)
+    }
+
+    fn display<'a>(&'a self, _context: DisplayContext<'a>) -> AnsiString<'a> {
+        // TODO context?
         let f = timeago::Formatter::new();
-        let ago = f.convert_chrono(self.endtime(), Utc::now());
-        Cow::Owned(format!("{ago} --- {}", self.command))
+        let ago = f.convert_chrono(self.timestamp, Utc::now());
+        AnsiString::new_string(format!("{ago} --- {}", self.command), Vec::new())
     }
 
     fn output(&self) -> Cow<'_, str> {
@@ -44,11 +50,7 @@ pub(crate) async fn invoke(
         .height(String::from("70%"))
         .min_height(String::from("10"))
         .header(Some(String::from("osh-oxy")))
-        // TODO seems to have no effect and strange tie breaking in some cases
-        // .tiebreak(vec![RankCriteria::NegIndex])
         .tiebreak(vec![RankCriteria::Index])
-        .delimiter(String::from("---"))
-        .nth(vec![String::from("2")])
         .preview_window(String::from("down:5:wrap"))
         .preview(Some(String::new()))
         .multi(false)
