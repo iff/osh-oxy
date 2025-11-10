@@ -1,6 +1,6 @@
 use crate::event::{Event, EventFilter};
-use crate::{formats::Kind, osh_files};
 use crate::formats::json_lines::load_osh_events;
+use crate::{formats::Kind, osh_files};
 use chrono::Utc;
 use futures::future;
 use itertools::{Either, Itertools, kmerge_by};
