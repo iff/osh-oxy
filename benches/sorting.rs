@@ -2,7 +2,9 @@ use arbitrary::{Arbitrary, Unstructured};
 use criterion::{Criterion, criterion_group, criterion_main};
 use futures::future;
 use itertools::kmerge_by;
-use osh_oxy::event::{Event, EventFilter, Events, load_osh_events, osh_files};
+use osh_oxy::event::{Event, EventFilter, Events};
+use osh_oxy::formats::{Kind, json_lines::load_osh_events};
+use osh_oxy::osh_files;
 use std::hint::black_box;
 use tokio_test::block_on;
 
@@ -32,7 +34,7 @@ fn create_presorted_files(num_files: usize, events_per_file: usize, sorted: bool
 fn benchmark_sort_real_data(c: &mut Criterion) {
     let mut group = c.benchmark_group("sort_by_timestamp");
 
-    let osh_files = osh_files();
+    let osh_files = osh_files(Kind::JsonLines);
     if osh_files.is_empty() {
         eprintln!("no .osh files found");
         return;
@@ -58,7 +60,7 @@ fn benchmark_sort_real_data(c: &mut Criterion) {
 fn benchmark_kmerge_real_data(c: &mut Criterion) {
     let mut group = c.benchmark_group("kmerge_real");
 
-    let osh_files = osh_files();
+    let osh_files = osh_files(Kind::JsonLines);
     if osh_files.is_empty() {
         eprintln!("no .osh files found");
         return;

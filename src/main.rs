@@ -1,7 +1,6 @@
 use clap::{Parser, Subcommand};
 
-pub(crate) mod commands;
-pub(crate) mod event;
+use osh_oxy::commands;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -13,20 +12,6 @@ struct Args {
 #[derive(Subcommand, Debug)]
 #[clap(rename_all = "kebab_case")]
 enum Command {
-    Cat {
-        #[arg(long)]
-        session_id: Option<String>,
-        #[arg(long)]
-        unique: bool,
-    },
-    Sk {
-        #[arg(long, default_value = "")]
-        query: String,
-        #[arg(long)]
-        session_id: Option<String>,
-        #[arg(long)]
-        unique: bool,
-    },
     AppendEvent {
         #[arg(long)]
         starttime: f64,
@@ -42,6 +27,21 @@ enum Command {
         machine: String,
         #[arg(long)]
         session: String,
+    },
+    Cat {
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        unique: bool,
+    },
+    Convert {},
+    Sk {
+        #[arg(long, default_value = "")]
+        query: String,
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        unique: bool,
     },
 }
 
@@ -59,9 +59,13 @@ async fn main() -> anyhow::Result<()> {
             exit_code,
             machine,
             session,
-        } => commands::append_event::invoke(
-            starttime, &command, &folder, endtime, exit_code, &machine, &session,
-        )?,
+        } => {
+            commands::append_event::invoke(
+                starttime, &command, &folder, endtime, exit_code, &machine, &session,
+            )
+            .await?
+        }
+        Command::Convert {} => commands::convert::invoke().await?,
         Command::Sk {
             query,
             session_id,

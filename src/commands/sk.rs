@@ -1,50 +1,24 @@
-use crate::event::{Event, EventFilter, load_osh_events, osh_files};
-use chrono::Utc;
+use crate::event::{Event, EventFilter};
+use crate::formats::{Kind, json_lines};
+use crate::osh_files;
 use futures::future;
 use itertools::{Either, Itertools, kmerge_by};
 use skim::{
-    AnsiString, DisplayContext, ItemPreview, PreviewContext, RankCriteria, Skim, SkimItem,
-    SkimItemReceiver, SkimItemSender,
+    RankCriteria, Skim, SkimItemReceiver, SkimItemSender,
     prelude::{Key, SkimOptionsBuilder, unbounded},
 };
-use std::borrow::Cow;
 use std::{sync::Arc, thread};
 
-impl SkimItem for Event {
-    fn text(&self) -> Cow<'_, str> {
-        Cow::Borrowed(&self.command)
-    }
+pub async fn invoke(query: &str, session_id: Option<String>, unique: bool) -> anyhow::Result<()> {
+    let oshs = osh_files(Kind::JsonLines);
 
-    fn display<'a>(&'a self, _context: DisplayContext<'a>) -> AnsiString<'a> {
-        // TODO context?
-        let f = timeago::Formatter::new();
-        let ago = f.convert_chrono(self.timestamp, Utc::now());
-        AnsiString::new_string(format!("{ago} --- {}", self.command), Vec::new())
-    }
-
-    fn output(&self) -> Cow<'_, str> {
-        Cow::Borrowed(&self.command)
-    }
-
-    fn preview(&self, _context: PreviewContext) -> ItemPreview {
-        let f = timeago::Formatter::new();
-        let ago = f.convert_chrono(self.endtime(), Utc::now());
-        ItemPreview::Text(format!(
-            "[{}] [exit_code={}]\n{}",
-            ago, self.exit_code, self.command
-        ))
-    }
-}
-
-pub(crate) async fn invoke(
-    query: &str,
-    session_id: Option<String>,
-    unique: bool,
-) -> anyhow::Result<()> {
-    let oshs = osh_files();
     // TODO filter here and in parallel?
     let filter = EventFilter::new(session_id);
-    let all = future::try_join_all(oshs.into_iter().map(|f| load_osh_events(f, &filter))).await?;
+    let all = future::try_join_all(
+        oshs.into_iter()
+            .map(|f| json_lines::load_osh_events(f, &filter)),
+    )
+    .await?;
 
     let options = SkimOptionsBuilder::default()
         .height(String::from("70%"))

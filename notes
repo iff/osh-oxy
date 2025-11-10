@@ -2,11 +2,12 @@
 - look at binary formats or use my own
     - https://capnproto.org/
     - https://github.com/capnproto/capnproto-rust?tab=readme-ov-file
+    x https://docs.rs/rmp-serde/latest/rmp_serde/
 - understand Rust pdqsort in detail and write better benchs
     - also look into glidesort: https://github.com/orlp/glidesort
 - use bind to switch between filtered and unfiltered
     - probably need a reload command (output to stdout) and bind that: `"tab:reload(osh-oxy reload --all)"`
-- splitting lib up in different formats (when adding more)
+x splitting lib up in different formats (when adding more)
 x at the moment sorting is not correct for long running commands (we append to osh files after process completes)
     - breaks invariant that files are pre-sorted
     - only noticeable for very long running commands in "fresh entries" (where timeago is still fine grained)

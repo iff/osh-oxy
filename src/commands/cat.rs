@@ -1,12 +1,14 @@
-use crate::event::{Event, EventFilter, load_osh_events, osh_files};
+use crate::event::{Event, EventFilter};
+use crate::formats::json_lines::load_osh_events;
+use crate::{formats::Kind, osh_files};
 use chrono::Utc;
 use futures::future;
 use itertools::{Either, Itertools, kmerge_by};
 
-pub(crate) async fn invoke(session_id: Option<String>, unique: bool) -> anyhow::Result<()> {
+pub async fn invoke(session_id: Option<String>, unique: bool) -> anyhow::Result<()> {
     let filter = EventFilter::new(session_id);
-    let all =
-        future::try_join_all(osh_files().into_iter().map(|f| load_osh_events(f, &filter))).await?;
+    let oshs = osh_files(Kind::JsonLines);
+    let all = future::try_join_all(oshs.into_iter().map(|f| load_osh_events(f, &filter))).await?;
 
     let iterators = all.into_iter().map(|ev| ev.into_iter().rev());
     let items = if unique {

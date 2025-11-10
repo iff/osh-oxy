@@ -1,11 +1,8 @@
-use std::fs;
-
-use crate::event::{Entry, Event, Format};
+use crate::{event::Event, formats::json_lines::JsonLinesEventWriter};
 use anyhow::Context;
-use chrono::DateTime;
-use serde_jsonlines::append_json_lines;
+use chrono::{TimeZone, Utc};
 
-pub(crate) fn invoke(
+pub async fn invoke(
     starttime: f64,
     command: &str,
     folder: &str,
@@ -14,26 +11,14 @@ pub(crate) fn invoke(
     machine: &str,
     session: &str,
 ) -> anyhow::Result<()> {
-    // TODO maybe use hostname later, for now use our own file
-    let mut osh_file = home::home_dir().expect("home dir has to exist");
+    let mut osh_file = home::home_dir().context("home dir has to exist")?;
     osh_file.push(".osh/");
-    fs::create_dir_all(&osh_file)?;
+    std::fs::create_dir_all(&osh_file)?;
     osh_file.push("local.osh");
-
-    if !osh_file.as_path().exists() {
-        // TODO default header?
-        append_json_lines(
-            osh_file.as_path(),
-            [Format {
-                format: String::from("osh-history-v1"),
-                description: None,
-            }],
-        )
-        .context("failed to serialise header")?;
-    }
+    // osh_file.push("local.bosh");
 
     let event = Event {
-        timestamp: DateTime::from_timestamp_nanos((starttime * 1e9) as i64).into(),
+        timestamp: Utc.timestamp_nanos((starttime * 1e9) as i64).into(),
         command: command.to_string(),
         duration: (endtime - starttime) as f32,
         exit_code,
@@ -41,8 +26,17 @@ pub(crate) fn invoke(
         machine: machine.to_string(),
         session: session.to_string(),
     };
-    append_json_lines(osh_file.as_path(), [Entry::EventE { event }])
-        .context("failed to serialise event")?;
+
+    let file = tokio::fs::File::open(osh_file.as_path()).await?;
+
+    // TODO maybe write header
+    let exists = osh_file.as_path().exists();
+    let mut writer = JsonLinesEventWriter::new(file, exists);
+
+    // NOTE binary format
+    // let mut writer = AsyncBinaryWriter::new(file);
+
+    event.write(&mut writer).await?;
 
     Ok(())
 }
