@@ -1,12 +1,17 @@
+use std::{option::Option, path::Path};
+
 use serde::{Deserialize, Serialize};
 use serde_jsonlines::{AsyncJsonLinesReader, AsyncJsonLinesWriter};
-use std::{option::Option, path::Path};
-use tokio::io::AsyncWrite;
-use tokio::{fs::File, io::BufReader};
+use tokio::{
+    fs::File,
+    io::{AsyncWrite, BufReader},
+};
 use tokio_stream::StreamExt;
 
-use crate::event::{Event, EventFilter, Events};
-use crate::formats::EventWriter;
+use crate::{
+    event::{Event, EventFilter, Events},
+    formats::EventWriter,
+};
 
 /// header of the json lines format.
 #[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -99,8 +104,9 @@ pub async fn load_osh_events(
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use std::path::Path;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_parsing_osh_file() -> anyhow::Result<()> {

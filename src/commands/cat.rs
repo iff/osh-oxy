@@ -1,9 +1,12 @@
-use crate::event::{Event, EventFilter};
-use crate::formats::json_lines::load_osh_events;
-use crate::{formats::Kind, osh_files};
 use chrono::Utc;
 use futures::future;
 use itertools::{Either, Itertools, kmerge_by};
+
+use crate::{
+    event::{Event, EventFilter},
+    formats::{Kind, json_lines::load_osh_events},
+    osh_files,
+};
 
 pub async fn invoke(session_id: Option<String>, unique: bool) -> anyhow::Result<()> {
     let filter = EventFilter::new(session_id);
@@ -24,7 +27,6 @@ pub async fn invoke(session_id: Option<String>, unique: bool) -> anyhow::Result<
         let f = timeago::Formatter::new();
         let ago = f.convert_chrono(item.endtime(), Utc::now());
         println!("{ago} --- {}", item.command);
-        // TODO missing preview cols
     }
 
     Ok(())

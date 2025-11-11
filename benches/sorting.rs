@@ -1,11 +1,14 @@
+use std::hint::black_box;
+
 use arbitrary::{Arbitrary, Unstructured};
 use criterion::{Criterion, criterion_group, criterion_main};
 use futures::future;
 use itertools::kmerge_by;
-use osh_oxy::event::{Event, EventFilter, Events};
-use osh_oxy::formats::{Kind, json_lines::load_osh_events};
-use osh_oxy::osh_files;
-use std::hint::black_box;
+use osh_oxy::{
+    event::{Event, EventFilter, Events},
+    formats::{Kind, json_lines::load_osh_events},
+    osh_files,
+};
 use tokio_test::block_on;
 
 fn create_test_events(size: usize) -> impl Iterator<Item = Event> {

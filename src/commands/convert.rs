@@ -1,9 +1,11 @@
-use crate::event::EventFilter;
-use crate::formats::rmp::AsyncBinaryWriter;
-use crate::formats::{EventWriter, Kind, json_lines};
-use crate::osh_files;
 use anyhow::Context;
 use tokio::fs::File;
+
+use crate::{
+    event::EventFilter,
+    formats::{EventWriter, Kind, json_lines, rmp::AsyncBinaryWriter},
+    osh_files,
+};
 
 pub async fn invoke() -> anyhow::Result<()> {
     for path in osh_files(Kind::JsonLines) {

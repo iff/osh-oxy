@@ -1,13 +1,16 @@
-use crate::event::{Event, EventFilter, Events};
-use crate::formats::EventWriter;
+use std::{io::Result, marker::Unpin, path::Path};
+
 use pin_project::pin_project;
-use rmp_serde::decode;
-use rmp_serde::encode::to_vec;
-use std::io::Result;
-use std::marker::Unpin;
-use std::path::Path;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt};
-use tokio::{fs::File, io::BufReader};
+use rmp_serde::{decode, encode::to_vec};
+use tokio::{
+    fs::File,
+    io::{AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt, BufReader},
+};
+
+use crate::{
+    event::{Event, EventFilter, Events},
+    formats::EventWriter,
+};
 
 #[pin_project]
 #[derive(Debug)]
@@ -112,10 +115,10 @@ pub async fn load_osh_events(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use arbitrary::Arbitrary;
-    use arbitrary::Unstructured;
+    use arbitrary::{Arbitrary, Unstructured};
     use tempfile::NamedTempFile;
+
+    use super::*;
 
     #[tokio::test]
     async fn write_binary_event() -> anyhow::Result<()> {

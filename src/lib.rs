@@ -1,5 +1,6 @@
-use glob::glob;
 use std::{collections::HashSet, path::PathBuf};
+
+use glob::glob;
 
 pub mod commands;
 pub mod event;

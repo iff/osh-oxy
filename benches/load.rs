@@ -1,11 +1,12 @@
-use std::time::Duration;
+use std::{hint::black_box, time::Duration};
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use futures::future;
-use osh_oxy::event::EventFilter;
-use osh_oxy::formats::{Kind, json_lines, rmp};
-use osh_oxy::osh_files;
-use std::hint::black_box;
+use osh_oxy::{
+    event::EventFilter,
+    formats::{Kind, json_lines, rmp},
+    osh_files,
+};
 use tokio::runtime::Runtime;
 
 fn benchmark_load_json_lines(c: &mut Criterion) {

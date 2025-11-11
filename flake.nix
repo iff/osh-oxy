@@ -29,10 +29,18 @@
               rust.fromRustupToolchainFile ./rust-toolchain
             else
               rust.stable.latest.default;
+
+          rustNightly = super.rust-bin.selectLatestNightlyWith (toolchain: toolchain.default.override {
+            extensions = [ "rustfmt" ];
+          });
         })
       ];
 
       pkgs = import nixpkgs { inherit system overlays; };
+
+      rustfmt-nightly = pkgs.writeShellScriptBin "rustfmt" ''
+        exec ${pkgs.rustNightly}/bin/rustfmt "$@"
+      '';
 
       app = pkgs.rustPlatform.buildRustPackage {
         pname = "osh-oxy";
@@ -46,8 +54,9 @@
         nativeBuildInputs = [ pkgs.pkg-config ];
       };
 
+      bins = [ rustfmt-nightly ];
+
     in
-    rec
     {
       packages = {
         app = app;
@@ -70,7 +79,9 @@
         ];
 
         shellHook = ''
-          ${pkgs.rustToolchain}/bin/cargo --version
+          export PATH=${pkgs.lib.makeBinPath bins}:$PATH
+          echo "Rust stable: $(${pkgs.rustToolchain}/bin/rustc --version)"
+          echo "Nightly rustfmt: $(rustfmt --version)"
         '';
       };
     });

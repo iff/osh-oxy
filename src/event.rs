@@ -1,11 +1,11 @@
-use crate::formats::EventWriter;
+use std::{borrow::Cow, option::Option, path::PathBuf};
+
 use arbitrary::{Arbitrary, Result, Unstructured};
 use chrono::{DateTime, Local, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use skim::{AnsiString, DisplayContext, ItemPreview, PreviewContext, SkimItem};
-use std::borrow::Cow;
-use std::option::Option;
-use std::path::PathBuf;
+
+use crate::formats::EventWriter;
 
 /// the metadata we store for each history entry
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
@@ -110,10 +110,10 @@ impl EventFilter {
 
 #[cfg(test)]
 mod test {
-    use crate::formats::json_lines;
+    use std::path::Path;
 
     use super::*;
-    use std::path::Path;
+    use crate::formats::json_lines;
 
     macro_rules! aw {
         ($e:expr) => {

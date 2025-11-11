@@ -1,13 +1,17 @@
-use crate::event::{Event, EventFilter};
-use crate::formats::{Kind, json_lines};
-use crate::osh_files;
+use std::{sync::Arc, thread};
+
 use futures::future;
 use itertools::{Either, Itertools, kmerge_by};
 use skim::{
     RankCriteria, Skim, SkimItemReceiver, SkimItemSender,
     prelude::{Key, SkimOptionsBuilder, unbounded},
 };
-use std::{sync::Arc, thread};
+
+use crate::{
+    event::{Event, EventFilter},
+    formats::{Kind, json_lines},
+    osh_files,
+};
 
 pub async fn invoke(query: &str, session_id: Option<String>, unique: bool) -> anyhow::Result<()> {
     let oshs = osh_files(Kind::JsonLines);

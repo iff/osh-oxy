@@ -1,6 +1,7 @@
-use crate::{event::Event, formats::json_lines::JsonLinesEventWriter};
 use anyhow::Context;
 use chrono::{TimeZone, Utc};
+
+use crate::{event::Event, formats::json_lines::JsonLinesEventWriter};
 
 pub async fn invoke(
     starttime: f64,
