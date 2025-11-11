@@ -42,6 +42,14 @@ enum Command {
         #[arg(long)]
         unique: bool,
     },
+    Ui {
+        #[arg(long, default_value = "")]
+        query: String,
+        #[arg(long)]
+        session_id: Option<String>,
+        #[arg(long)]
+        unique: bool,
+    },
 }
 
 #[tokio::main]
@@ -70,6 +78,11 @@ async fn main() -> anyhow::Result<()> {
             session_id,
             unique,
         } => commands::sk::invoke(&query, session_id, unique).await?,
+        Command::Ui {
+            query,
+            session_id,
+            unique,
+        } => commands::tui::invoke(&query, session_id, unique).await?,
     }
 
     Ok(())
