@@ -54,7 +54,6 @@ pub async fn invoke(query: &str, session_id: Option<String>, unique: bool) -> an
         }
 
         // notify skim to stop waiting for more
-        // NOTE it only displays once we signal stop..
         drop(tx_item);
     });
 
