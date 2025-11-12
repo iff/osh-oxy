@@ -89,11 +89,12 @@ struct App {
     character_index: usize,
     /// History of recorded messages
     history: Vec<String>,
+    /// indices into history sorted according to fuzzer score if we have a query
+    indices: Option<Vec<usize>>,
     /// Reader for collecting events from background thread
     reader: Reader,
     /// Accumulated events pool for filtering and matching
     events: Vec<Arc<Event>>,
-    indices: Option<Vec<usize>>,
 }
 
 impl App {
@@ -101,10 +102,10 @@ impl App {
         Self {
             input: String::new(),
             history: Vec::new(),
+            indices: None,
             character_index: 0,
             reader,
             events: Vec::new(),
-            indices: None,
         }
     }
 
