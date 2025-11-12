@@ -7,6 +7,7 @@
     - also look into glidesort: https://github.com/orlp/glidesort
 - use bind to switch between filtered and unfiltered
     - probably need a reload command (output to stdout) and bind that: `"tab:reload(osh-oxy reload --all)"`
+    r reimplement basics we need (tui with ratatui and fuzzy-matcher as lib)
 x splitting lib up in different formats (when adding more)
 x at the moment sorting is not correct for long running commands (we append to osh files after process completes)
     - breaks invariant that files are pre-sorted
