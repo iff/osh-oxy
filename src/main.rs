@@ -34,14 +34,6 @@ enum Command {
         unique: bool,
     },
     Convert {},
-    Sk {
-        #[arg(long, default_value = "")]
-        query: String,
-        #[arg(long)]
-        session_id: Option<String>,
-        #[arg(long)]
-        unique: bool,
-    },
     Ui {
         #[arg(long, default_value = "")]
         query: String,
@@ -73,11 +65,6 @@ async fn main() -> anyhow::Result<()> {
             .await?
         }
         Command::Convert {} => commands::convert::invoke().await?,
-        Command::Sk {
-            query,
-            session_id,
-            unique,
-        } => commands::sk::invoke(&query, session_id, unique).await?,
         Command::Ui {
             query,
             session_id,
