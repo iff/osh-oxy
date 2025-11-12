@@ -1,4 +1,7 @@
 use std::{
+    fs::File,
+    io::Write,
+    os::fd::{AsRawFd, FromRawFd},
     sync::{Arc, Mutex},
     thread,
     time::Duration,
@@ -7,9 +10,9 @@ use std::{
 use chrono::Utc;
 use crossbeam_channel::Receiver;
 use crossterm::{
-    event::{self, KeyCode},
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
+    event::{self, KeyCode},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{
     Frame, Terminal,
@@ -93,19 +96,28 @@ pub fn ui(receiver: Receiver<Arc<Event>>) -> Option<Event> {
     result.unwrap_or_default()
 }
 
-fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<std::io::Stdout>>> {
-    let mut stdout = std::io::stdout();
+fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<File>>> {
+    let tty = File::options().read(true).write(true).open("/dev/tty")?;
+    let fd = tty.as_raw_fd();
+
     enable_raw_mode()?;
-    stdout.execute(EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
+
+    let mut tty_write = unsafe { File::from_raw_fd(fd) };
+    tty_write.execute(EnterAlternateScreen)?;
+    std::mem::forget(tty_write);
+
+    let backend = CrosstermBackend::new(tty);
     let terminal = Terminal::new(backend)?;
     Ok(terminal)
 }
 
-fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> anyhow::Result<()> {
-    disable_raw_mode()?;
+fn restore_terminal(
+    terminal: &mut Terminal<CrosstermBackend<File>>,
+) -> anyhow::Result<()> {
     terminal.backend_mut().execute(LeaveAlternateScreen)?;
     terminal.show_cursor()?;
+    disable_raw_mode()?;
+    terminal.backend_mut().flush()?;
     Ok(())
 }
 
@@ -244,7 +256,10 @@ impl App {
         }
     }
 
-    fn run(mut self, terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> anyhow::Result<Option<Event>> {
+    fn run(
+        mut self,
+        terminal: &mut Terminal<CrosstermBackend<File>>,
+    ) -> anyhow::Result<Option<Event>> {
         self.collect_new_events();
         self.update_display();
         terminal.draw(|frame| self.render(frame))?;
