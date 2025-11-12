@@ -76,9 +76,9 @@ impl Reader {
     }
 }
 
-pub fn ui(receiver: Receiver<Arc<Event>>) {
+pub fn ui(receiver: Receiver<Arc<Event>>) -> Option<Event> {
     let reader = Reader::new().start(receiver);
-    ratatui::run(|terminal| App::new(reader).run(terminal)).unwrap();
+    ratatui::run(|terminal| App::new(reader).run(terminal)).unwrap_or_default()
 }
 
 /// App holds the state of the application
@@ -216,18 +216,7 @@ impl App {
         }
     }
 
-    fn accept(&self) {
-        let idx = if let Some(indices) = &self.indices {
-            indices[self.selected_index]
-        } else {
-            self.selected_index
-        };
-        if idx < self.events.len() {
-            println!("{}", self.events[idx].command);
-        }
-    }
-
-    fn run(mut self, terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
+    fn run(mut self, terminal: &mut DefaultTerminal) -> anyhow::Result<Option<Event>> {
         self.collect_new_events();
         self.update_display();
         terminal.draw(|frame| self.render(frame))?;
@@ -237,8 +226,16 @@ impl App {
                 if let Some(key) = event::read()?.as_key_press_event() {
                     match key.code {
                         KeyCode::Enter => {
-                            self.accept();
-                            return Ok(());
+                            let idx = if let Some(indices) = &self.indices {
+                                indices[self.selected_index]
+                            } else {
+                                self.selected_index
+                            };
+                            if let Some(event) = self.events.get(idx) {
+                                let event = Arc::unwrap_or_clone(event.clone());
+                                return Ok(Some(event));
+                            }
+                            return Ok(None);
                         }
                         KeyCode::Char(to_insert) => self.enter_char(to_insert),
                         KeyCode::Backspace => self.delete_char(),
@@ -250,7 +247,7 @@ impl App {
                             self.move_selection_up(available_height);
                         }
                         KeyCode::Down => self.move_selection_down(),
-                        KeyCode::Esc => return Ok(()),
+                        KeyCode::Esc => return Ok(None),
                         _ => {}
                     }
                     terminal.draw(|frame| self.render(frame))?;
@@ -292,7 +289,6 @@ impl App {
             input_area.y + 1,
         ));
 
-        // TODO matcher tells us how many are left
         let filtered = if let Some(indices) = &self.indices {
             indices.len()
         } else {
