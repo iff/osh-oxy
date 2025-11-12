@@ -6,9 +6,14 @@ use std::{
 
 use chrono::Utc;
 use crossbeam_channel::Receiver;
-use crossterm::event::{self, KeyCode};
+use crossterm::{
+    event::{self, KeyCode},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    ExecutableCommand,
+};
 use ratatui::{
-    DefaultTerminal, Frame,
+    Frame, Terminal,
+    backend::CrosstermBackend,
     layout::{Constraint, Layout, Position},
     style::{Color, Style, Stylize},
     text::{Line, Span, Text},
@@ -78,7 +83,29 @@ impl Reader {
 
 pub fn ui(receiver: Receiver<Arc<Event>>) -> Option<Event> {
     let reader = Reader::new().start(receiver);
-    ratatui::run(|terminal| App::new(reader).run(terminal)).unwrap_or_default()
+
+    let result = setup_terminal().and_then(|mut terminal| {
+        let result = App::new(reader).run(&mut terminal);
+        restore_terminal(&mut terminal)?;
+        result
+    });
+
+    result.unwrap_or_default()
+}
+
+fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<std::io::Stdout>>> {
+    enable_raw_mode()?;
+    std::io::stdout().execute(EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(std::io::stdout());
+    let terminal = Terminal::new(backend)?;
+    Ok(terminal)
+}
+
+fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> anyhow::Result<()> {
+    disable_raw_mode()?;
+    std::io::stdout().execute(LeaveAlternateScreen)?;
+    terminal.show_cursor()?;
+    Ok(())
 }
 
 /// App holds the state of the application
@@ -216,7 +243,7 @@ impl App {
         }
     }
 
-    fn run(mut self, terminal: &mut DefaultTerminal) -> anyhow::Result<Option<Event>> {
+    fn run(mut self, terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> anyhow::Result<Option<Event>> {
         self.collect_new_events();
         self.update_display();
         terminal.draw(|frame| self.render(frame))?;
@@ -300,7 +327,8 @@ impl App {
 
         let available_height = history_area.height.saturating_sub(2) as usize;
         let history = if let Some(indices) = &self.indices {
-            let history: Vec<ListItem> = indices[0..available_height]
+            let visible_count = available_height.min(indices.len());
+            let history: Vec<ListItem> = indices[0..visible_count]
                 .iter()
                 .enumerate()
                 .rev()
@@ -316,7 +344,8 @@ impl App {
                 .collect();
             history
         } else {
-            let history: Vec<ListItem> = self.history[0..available_height]
+            let visible_count = available_height.min(self.history.len());
+            let history: Vec<ListItem> = self.history[0..visible_count]
                 .iter()
                 .enumerate()
                 .rev()
