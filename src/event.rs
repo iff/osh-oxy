@@ -29,7 +29,7 @@ impl PartialOrd for Event {
 }
 
 impl Event {
-    pub async fn write(&self, writer: &mut impl EventWriter) -> anyhow::Result<()> {
+    pub async fn write(self, writer: &mut impl EventWriter) -> anyhow::Result<()> {
         writer.write(self).await
     }
     pub fn endtime(&self) -> DateTime<Local> {

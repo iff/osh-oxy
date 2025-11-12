@@ -26,8 +26,8 @@ impl<W: AsyncWrite> AsyncBinaryWriter<W> {
 }
 
 impl<W: AsyncWrite + Unpin + Send> EventWriter for AsyncBinaryWriter<W> {
-    async fn write(&mut self, event: &Event) -> anyhow::Result<()> {
-        let data = to_vec(event).expect("encoding value");
+    async fn write(&mut self, event: Event) -> anyhow::Result<()> {
+        let data = to_vec(&event).expect("encoding value");
         let mut buf = (data.len() as u64).to_le_bytes().to_vec();
         buf.extend(data);
         self.inner.write_all(&buf).await?;
@@ -146,7 +146,7 @@ mod tests {
 
         for _ in 0..num_events {
             let event = crate::event::Event::arbitrary(&mut u).unwrap();
-            event.write(&mut writer).await?;
+            event.clone().write(&mut writer).await?;
             events.push(event);
         }
 

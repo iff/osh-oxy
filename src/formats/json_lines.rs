@@ -66,14 +66,14 @@ impl<W: AsyncWrite + Unpin> JsonLinesEventWriter<W> {
 }
 
 impl<W: AsyncWrite + Unpin + Send> EventWriter for JsonLinesEventWriter<W> {
-    async fn write(&mut self, event: &Event) -> anyhow::Result<()> {
+    async fn write(&mut self, event: Event) -> anyhow::Result<()> {
         if !self.header_written {
             self.writer.write(&JsonLinesHeader::default()).await?;
             self.header_written = true;
         }
         self.writer
             .write(&Entry::EventE {
-                event: event.clone(),
+                event,
             })
             .await?;
         Ok(())

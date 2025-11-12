@@ -22,7 +22,7 @@ pub async fn invoke() -> anyhow::Result<()> {
         let mut writer = AsyncBinaryWriter::new(file);
         for event in events {
             writer
-                .write(&event)
+                .write(event)
                 .await
                 .context("Failed to write event")?;
         }
