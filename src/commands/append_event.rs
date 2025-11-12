@@ -28,10 +28,10 @@ pub async fn invoke(
         session: session.to_string(),
     };
 
-    // TODO maybe write header
-    let exists = osh_file.as_path().exists();
+    // TODO maybe write header if file does not exist
+    let write_header = !osh_file.as_path().exists();
     let file = tokio::fs::File::open(osh_file.as_path()).await?;
-    let mut writer = JsonLinesEventWriter::new(file, exists);
+    let mut writer = JsonLinesEventWriter::new(file, write_header);
 
     // NOTE binary format
     // let mut writer = AsyncBinaryWriter::new(file);
