@@ -14,8 +14,48 @@ use ratatui::{
     text::{Line, Span, Text},
     widgets::{Block, List, ListItem, Paragraph},
 };
+use rayon::prelude::*;
 
 use crate::event::Event;
+
+mod fuzzer {
+    use fuzzy_matcher::{FuzzyMatcher, skim::SkimMatcherV2};
+    const BYTES_1M: usize = 1024 * 1024 * 1024;
+
+    pub struct FuzzyEngine {
+        query: String,
+        matcher: SkimMatcherV2,
+        // rank_builder: Arc<RankBuilder>,
+    }
+
+    impl FuzzyEngine {
+        pub fn new(query: String) -> Self {
+            let matcher = SkimMatcherV2::default().element_limit(BYTES_1M);
+            // let matcher = match self.case {
+            //     CaseMatching::Respect => matcher.respect_case(),
+            //     CaseMatching::Ignore => matcher.ignore_case(),
+            //     CaseMatching::Smart => matcher.smart_case(),
+            // };
+
+            FuzzyEngine {
+                matcher,
+                query,
+                // rank_builder: self.rank_builder,
+            }
+        }
+
+        pub fn match_line(&self, line: &String) -> i64 {
+            // TODO this needs to be executed in parallel for all the entries we have
+            // rayon?
+            if let Some((score, indices)) = self.matcher.fuzzy_indices(&line, &self.query) {
+                // TODO do something with this
+                return score;
+            }
+
+            0
+        }
+    }
+}
 
 struct Reader {
     buffer: Arc<Mutex<Vec<Arc<Event>>>>,
@@ -65,6 +105,7 @@ struct App {
     reader: Reader,
     /// Accumulated events pool for filtering and matching
     events: Vec<Arc<Event>>,
+    indices: Option<Vec<usize>>,
 }
 
 impl App {
@@ -75,6 +116,7 @@ impl App {
             character_index: 0,
             reader,
             events: Vec::new(),
+            indices: None,
         }
     }
 
@@ -93,7 +135,20 @@ impl App {
         self.input.insert(index, new_char);
         self.move_cursor_right();
 
-        // TODO launch matcher
+        // TODO only if query is not empty but here we only trigger after keypress so okay
+        // TODO launch matcher - maybe not on every keypress and/or cancle running
+        let matcher = fuzzer::FuzzyEngine::new(self.input.clone());
+        // TODO parallel matching inside fuzzy engine?
+        let scores: Vec<i64> = self
+            .events
+            .par_iter()
+            .map(|x| matcher.match_line(&x.command))
+            .collect();
+        // TODO sort events according score
+        // where do we accumulate scored values used for display? how do we update?
+        let mut indices: Vec<usize> = (0..self.events.len()).collect();
+        indices.sort_by_key(|&i| std::cmp::Reverse(scores[i]));
+        self.indices = Some(indices);
     }
 
     /// Returns the byte index based on the character position.
@@ -216,21 +271,38 @@ impl App {
             input_area.y + 1,
         ));
 
-        let status_text = format!("--- {}", self.history.len());
+        // TODO matcher tells us how many are left
+        let selected = self.history.len();
+        let status_text = format!("{selected} / {}", self.history.len());
         let status = Paragraph::new(status_text).style(Style::default().fg(Color::Cyan));
         frame.render_widget(status, status_area);
 
         let available_height = history_area.height.saturating_sub(2) as usize;
-        let history: Vec<ListItem> = self.history[0..available_height]
-            .iter()
-            .rev()
-            .map(|m| {
-                let content = Line::from(Span::raw(m));
-                ListItem::new(content)
-            })
-            .collect();
+        let history = if let Some(indices) = &self.indices {
+            let history: Vec<ListItem> = indices[0..available_height]
+                .iter()
+                .rev()
+                .map(|m| {
+                    let content = Line::from(Span::raw(self.history[*m].clone()));
+                    ListItem::new(content)
+                })
+                .collect();
+            history
+        } else {
+            let history: Vec<ListItem> = self.history[0..available_height]
+                .iter()
+                .rev()
+                .map(|m| {
+                    let content = Line::from(Span::raw(m));
+                    ListItem::new(content)
+                })
+                .collect();
+            history
+        };
 
         let history_widget = List::new(history).block(Block::bordered());
         frame.render_widget(history_widget, history_area);
+
+        // TODO preview
     }
 }
