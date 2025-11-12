@@ -43,8 +43,6 @@ pub async fn invoke(_query: &str, session_id: Option<String>, unique: bool) -> a
     let selected = ui::ui(receiver);
     if let Some(event) = selected {
         println!("{}", event.command);
-    } else {
-        println!("nothing selected");
     }
     Ok(())
 }
