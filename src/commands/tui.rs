@@ -9,7 +9,7 @@ use crate::{
     osh_files, ui,
 };
 
-pub async fn invoke(query: &str, session_id: Option<String>, unique: bool) -> anyhow::Result<()> {
+pub async fn invoke(_query: &str, session_id: Option<String>, unique: bool) -> anyhow::Result<()> {
     let oshs = osh_files(Kind::JsonLines);
 
     // TODO filter here and in parallel?

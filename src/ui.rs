@@ -44,11 +44,9 @@ mod fuzzer {
             }
         }
 
-        pub fn match_line(&self, line: &String) -> i64 {
-            // TODO this needs to be executed in parallel for all the entries we have
-            // rayon?
-            if let Some((score, indices)) = self.matcher.fuzzy_indices(&line, &self.query) {
-                // TODO do something with this
+        pub fn match_line(&self, line: &str) -> i64 {
+            if let Some((score, _indices)) = self.matcher.fuzzy_indices(line, &self.query) {
+                // TODO return indices for nicer vis
                 return score;
             }
 
@@ -136,19 +134,7 @@ impl App {
         self.move_cursor_right();
 
         // TODO only if query is not empty but here we only trigger after keypress so okay
-        // TODO launch matcher - maybe not on every keypress and/or cancle running
-        let matcher = fuzzer::FuzzyEngine::new(self.input.clone());
-        // TODO parallel matching inside fuzzy engine?
-        let scores: Vec<i64> = self
-            .events
-            .par_iter()
-            .map(|x| matcher.match_line(&x.command))
-            .collect();
-        // TODO sort events according score
-        // where do we accumulate scored values used for display? how do we update?
-        let mut indices: Vec<usize> = (0..self.events.len()).collect();
-        indices.sort_by_key(|&i| std::cmp::Reverse(scores[i]));
-        self.indices = Some(indices);
+        self.run_matcher();
     }
 
     /// Returns the byte index based on the character position.
@@ -183,6 +169,29 @@ impl App {
             self.input = before_char_to_delete.chain(after_char_to_delete).collect();
             self.move_cursor_left();
         }
+
+        if self.input.is_empty() {
+            self.indices = None;
+        } else {
+            self.run_matcher();
+        }
+    }
+
+    fn run_matcher(&mut self) {
+        // TODO only if query is not empty but here we only trigger after keypress so okay
+        // TODO launch matcher - maybe not on every keypress and/or cancle running
+        let matcher = fuzzer::FuzzyEngine::new(self.input.clone());
+        // TODO parallel matching inside fuzzy engine?
+        let scores: Vec<i64> = self
+            .events
+            .par_iter()
+            .map(|x| matcher.match_line(&x.command))
+            .collect();
+        // TODO sort events according score
+        // where do we accumulate scored values used for display? how do we update?
+        let mut indices: Vec<usize> = (0..self.events.len()).collect();
+        indices.sort_by_key(|&i| std::cmp::Reverse(scores[i]));
+        self.indices = Some(indices);
     }
 
     fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
@@ -208,11 +217,13 @@ impl App {
         }
     }
 
-    fn accept(&mut self) {
-        // self.messages.push(self.input.clone());
-        // println(selected());
-        // self.input.clear();
-        // self.reset_cursor();
+    fn accept(&self) {
+        let idx = if let Some(indices) = &self.indices {
+            *indices.first().unwrap()
+        } else {
+            0
+        };
+        println!("{}", self.events[idx].command);
     }
 
     fn run(mut self, terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
@@ -224,7 +235,10 @@ impl App {
             if event::poll(Duration::from_millis(100))? {
                 if let Some(key) = event::read()?.as_key_press_event() {
                     match key.code {
-                        KeyCode::Enter => self.accept(),
+                        KeyCode::Enter => {
+                            self.accept();
+                            return Ok(());
+                        }
                         KeyCode::Char(to_insert) => self.enter_char(to_insert),
                         KeyCode::Backspace => self.delete_char(),
                         KeyCode::Left => self.move_cursor_left(),

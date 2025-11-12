@@ -1,4 +1,4 @@
-use std::{borrow::Cow, option::Option, path::PathBuf};
+use std::{option::Option, path::PathBuf};
 
 use arbitrary::{Arbitrary, Result, Unstructured};
 use chrono::{DateTime, Local, TimeZone, Utc};
@@ -55,32 +55,6 @@ impl<'a> Arbitrary<'a> for Event {
         })
     }
 }
-
-// impl SkimItem for Event {
-//     fn text(&self) -> Cow<'_, str> {
-//         Cow::Borrowed(&self.command)
-//     }
-//
-//     fn display<'a>(&'a self, _context: DisplayContext<'a>) -> AnsiString<'a> {
-//         // TODO context?
-//         let f = timeago::Formatter::new();
-//         let ago = f.convert_chrono(self.timestamp, Utc::now());
-//         AnsiString::new_string(format!("{ago} --- {}", self.command), Vec::new())
-//     }
-//
-//     fn output(&self) -> Cow<'_, str> {
-//         Cow::Borrowed(&self.command)
-//     }
-//
-//     fn preview(&self, _context: PreviewContext) -> ItemPreview {
-//         let f = timeago::Formatter::new();
-//         let ago = f.convert_chrono(self.timestamp, Utc::now());
-//         ItemPreview::Text(format!(
-//             "[{}] [exit_code={}]\n{}",
-//             ago, self.exit_code, self.command
-//         ))
-//     }
-// }
 
 pub type Events = Vec<Event>;
 
