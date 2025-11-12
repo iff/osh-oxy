@@ -25,23 +25,13 @@ mod fuzzer {
     pub struct FuzzyEngine {
         query: String,
         matcher: SkimMatcherV2,
-        // rank_builder: Arc<RankBuilder>,
     }
 
     impl FuzzyEngine {
         pub fn new(query: String) -> Self {
             let matcher = SkimMatcherV2::default().element_limit(BYTES_1M);
-            // let matcher = match self.case {
-            //     CaseMatching::Respect => matcher.respect_case(),
-            //     CaseMatching::Ignore => matcher.ignore_case(),
-            //     CaseMatching::Smart => matcher.smart_case(),
-            // };
-
-            FuzzyEngine {
-                matcher,
-                query,
-                // rank_builder: self.rank_builder,
-            }
+            let matcher = matcher.smart_case();
+            FuzzyEngine { matcher, query }
         }
 
         pub fn match_line(&self, line: &str) -> i64 {
@@ -178,18 +168,17 @@ impl App {
     }
 
     fn run_matcher(&mut self) {
-        // TODO only if query is not empty but here we only trigger after keypress so okay
         // TODO launch matcher - maybe not on every keypress and/or cancle running
         let matcher = fuzzer::FuzzyEngine::new(self.input.clone());
+
         // TODO parallel matching inside fuzzy engine?
         let scores: Vec<i64> = self
             .events
             .par_iter()
             .map(|x| matcher.match_line(&x.command))
             .collect();
-        // TODO sort events according score
-        // where do we accumulate scored values used for display? how do we update?
-        let mut indices: Vec<usize> = (0..self.events.len()).collect();
+
+        let mut indices: Vec<usize> = (0..self.events.len()).filter(|&i| scores[i] > 0).collect();
         indices.sort_by_key(|&i| std::cmp::Reverse(scores[i]));
         self.indices = Some(indices);
     }
@@ -197,10 +186,6 @@ impl App {
     fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
         new_cursor_pos.clamp(0, self.input.chars().count())
     }
-
-    // const fn reset_cursor(&mut self) {
-    //     self.character_index = 0;
-    // }
 
     fn collect_new_events(&mut self) {
         let mut new_events = self.reader.take();
@@ -286,8 +271,12 @@ impl App {
         ));
 
         // TODO matcher tells us how many are left
-        let selected = self.history.len();
-        let status_text = format!("{selected} / {}", self.history.len());
+        let filtered = if let Some(indices) = &self.indices {
+            indices.len()
+        } else {
+            self.events.len()
+        };
+        let status_text = format!("{filtered} / {}", self.history.len());
         let status = Paragraph::new(status_text).style(Style::default().fg(Color::Cyan));
         frame.render_widget(status, status_area);
 
