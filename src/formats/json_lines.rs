@@ -71,11 +71,7 @@ impl<W: AsyncWrite + Unpin + Send> EventWriter for JsonLinesEventWriter<W> {
             self.writer.write(&JsonLinesHeader::default()).await?;
             self.header_written = true;
         }
-        self.writer
-            .write(&Entry::EventE {
-                event,
-            })
-            .await?;
+        self.writer.write(&Entry::EventE { event }).await?;
         Ok(())
     }
 
