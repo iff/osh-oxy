@@ -95,6 +95,8 @@ struct App {
     reader: Reader,
     /// Accumulated events pool for filtering and matching
     events: Vec<Arc<Event>>,
+    /// Currently selected index in the history widget (0 = bottom-most)
+    selected_index: usize,
 }
 
 impl App {
@@ -106,6 +108,7 @@ impl App {
             character_index: 0,
             reader,
             events: Vec::new(),
+            selected_index: 0,
         }
     }
 
@@ -182,6 +185,16 @@ impl App {
         let mut indices: Vec<usize> = (0..self.events.len()).filter(|&i| scores[i] > 0).collect();
         indices.sort_by_key(|&i| std::cmp::Reverse(scores[i]));
         self.indices = Some(indices);
+        self.selected_index = 0;
+    }
+
+    fn move_selection_up(&mut self, available_height: usize) {
+        let max_index = available_height.saturating_sub(3);
+        self.selected_index = (self.selected_index + 1).min(max_index);
+    }
+
+    fn move_selection_down(&mut self) {
+        self.selected_index = self.selected_index.saturating_sub(1);
     }
 
     fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
@@ -205,11 +218,13 @@ impl App {
 
     fn accept(&self) {
         let idx = if let Some(indices) = &self.indices {
-            *indices.first().unwrap()
+            indices[self.selected_index]
         } else {
-            0
+            self.selected_index
         };
-        println!("{}", self.events[idx].command);
+        if idx < self.events.len() {
+            println!("{}", self.events[idx].command);
+        }
     }
 
     fn run(mut self, terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
@@ -229,6 +244,12 @@ impl App {
                         KeyCode::Backspace => self.delete_char(),
                         KeyCode::Left => self.move_cursor_left(),
                         KeyCode::Right => self.move_cursor_right(),
+                        KeyCode::Up => {
+                            let available_height =
+                                terminal.size()?.height.saturating_sub(5) as usize;
+                            self.move_selection_up(available_height);
+                        }
+                        KeyCode::Down => self.move_selection_down(),
                         KeyCode::Esc => return Ok(()),
                         _ => {}
                     }
@@ -285,20 +306,32 @@ impl App {
         let history = if let Some(indices) = &self.indices {
             let history: Vec<ListItem> = indices[0..available_height]
                 .iter()
+                .enumerate()
                 .rev()
-                .map(|m| {
+                .map(|(i, m)| {
                     let content = Line::from(Span::raw(self.history[*m].clone()));
-                    ListItem::new(content)
+                    let item = ListItem::new(content);
+                    if i == self.selected_index {
+                        item.style(Style::default().bg(Color::DarkGray))
+                    } else {
+                        item
+                    }
                 })
                 .collect();
             history
         } else {
             let history: Vec<ListItem> = self.history[0..available_height]
                 .iter()
+                .enumerate()
                 .rev()
-                .map(|m| {
+                .map(|(i, m)| {
                     let content = Line::from(Span::raw(m));
-                    ListItem::new(content)
+                    let item = ListItem::new(content);
+                    if i == self.selected_index {
+                        item.style(Style::default().bg(Color::DarkGray))
+                    } else {
+                        item
+                    }
                 })
                 .collect();
             history
