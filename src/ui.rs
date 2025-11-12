@@ -94,16 +94,17 @@ pub fn ui(receiver: Receiver<Arc<Event>>) -> Option<Event> {
 }
 
 fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<std::io::Stdout>>> {
+    let mut stdout = std::io::stdout();
     enable_raw_mode()?;
-    std::io::stdout().execute(EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(std::io::stdout());
+    stdout.execute(EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
     let terminal = Terminal::new(backend)?;
     Ok(terminal)
 }
 
 fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> anyhow::Result<()> {
     disable_raw_mode()?;
-    std::io::stdout().execute(LeaveAlternateScreen)?;
+    terminal.backend_mut().execute(LeaveAlternateScreen)?;
     terminal.show_cursor()?;
     Ok(())
 }
