@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{self, Write},
+    io::Write,
     sync::{Arc, Mutex},
     thread,
     time::Duration,
@@ -9,7 +9,6 @@ use std::{
 use chrono::Utc;
 use crossbeam_channel::Receiver;
 use crossterm::{
-    execute,
     ExecutableCommand,
     event::{self, KeyCode},
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
@@ -86,30 +85,26 @@ impl Reader {
 
 pub fn ui(receiver: Receiver<Arc<Event>>) -> Option<Event> {
     let reader = Reader::new().start(receiver);
-
-    let result = setup_terminal().and_then(|mut terminal| {
-        let result = App::new(reader).run(&mut terminal);
-        restore_terminal(&mut terminal)?;
-        result
-    });
-
-    result.unwrap_or_default()
+    setup_terminal()
+        .and_then(|mut terminal| {
+            let result = App::new(reader).run(&mut terminal);
+            restore_terminal(&mut terminal)?;
+            result
+        })
+        .unwrap_or_default()
 }
 
-fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<io::Stdout>>> {
-    // let mut tty = File::options().read(true).write(true).open("/dev/tty")?;
+fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<File>>> {
+    let mut tty = File::options().read(true).write(true).open("/dev/tty")?;
     enable_raw_mode()?;
-    // tty.execute(EnterAlternateScreen)?;
-    execute!(io::stdout(), EnterAlternateScreen)?;
+    tty.execute(EnterAlternateScreen)?;
 
-    let backend = CrosstermBackend::new(io::stdout());
+    let backend = CrosstermBackend::new(tty);
     let terminal = Terminal::new(backend)?;
     Ok(terminal)
 }
 
-fn restore_terminal(
-    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-) -> anyhow::Result<()> {
+fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<File>>) -> anyhow::Result<()> {
     terminal.backend_mut().execute(LeaveAlternateScreen)?;
     terminal.show_cursor()?;
     disable_raw_mode()?;
@@ -254,7 +249,7 @@ impl App {
 
     fn run(
         mut self,
-        terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+        terminal: &mut Terminal<CrosstermBackend<File>>,
     ) -> anyhow::Result<Option<Event>> {
         self.collect_new_events();
         self.update_display();
