@@ -9,7 +9,7 @@ use crate::{
     osh_files, ui,
 };
 
-pub async fn invoke(_query: &str, session_id: Option<String>, unique: bool) -> anyhow::Result<()> {
+pub async fn invoke(_query: &str, session_id: Option<String>) -> anyhow::Result<()> {
     let oshs = osh_files(Kind::JsonLines);
 
     let all = future::try_join_all(oshs.into_iter().map(json_lines::load_osh_events)).await?;
@@ -17,7 +17,8 @@ pub async fn invoke(_query: &str, session_id: Option<String>, unique: bool) -> a
     let (tx_item, receiver) = crossbeam_channel::unbounded();
     thread::spawn(move || {
         let iterators = all.into_iter().map(|ev| ev.into_iter().rev());
-        let items = if unique {
+        let items = if false {
+            // unique {
             // FIXME keeps oldest when unique
             Either::Left(
                 kmerge_by(iterators, |a: &Event, b: &Event| a > b)
@@ -34,7 +35,7 @@ pub async fn invoke(_query: &str, session_id: Option<String>, unique: bool) -> a
         drop(tx_item);
     });
 
-    let selected = ui::ui(receiver);
+    let selected = ui::ui(receiver, session_id);
     if let Some(event) = selected {
         println!("{}", event.command);
     }

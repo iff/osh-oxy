@@ -89,11 +89,11 @@ impl EventReader {
     }
 }
 
-pub fn ui(receiver: Receiver<Arc<Event>>) -> Option<Event> {
+pub fn ui(receiver: Receiver<Arc<Event>>, session_id: Option<String>) -> Option<Event> {
     let reader = EventReader::new().start(receiver);
     setup_terminal()
         .and_then(|mut terminal| {
-            let result = App::new(reader).run(&mut terminal);
+            let result = App::new(reader, session_id).run(&mut terminal);
             restore_terminal(&mut terminal)?;
             result
         })
@@ -179,10 +179,11 @@ struct App {
     events: Vec<Arc<Event>>,
     /// Currently selected index in the history widget (0 = bottom-most)
     selected_index: usize,
+    session_id: Option<String>,
 }
 
 impl App {
-    fn new(reader: EventReader) -> Self {
+    fn new(reader: EventReader, session_id: Option<String>) -> Self {
         Self {
             input: String::new(),
             history: Vec::new(),
@@ -191,6 +192,7 @@ impl App {
             reader,
             events: Vec::new(),
             selected_index: 0,
+            session_id,
         }
     }
 

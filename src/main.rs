@@ -34,13 +34,11 @@ enum Command {
         unique: bool,
     },
     Convert {},
-    Ui {
+    Search {
         #[arg(long, default_value = "")]
         query: String,
         #[arg(long)]
         session_id: Option<String>,
-        #[arg(long)]
-        unique: bool,
     },
 }
 
@@ -65,11 +63,7 @@ async fn main() -> anyhow::Result<()> {
             .await?
         }
         Command::Convert {} => commands::convert::invoke().await?,
-        Command::Ui {
-            query,
-            session_id,
-            unique,
-        } => commands::tui::invoke(&query, session_id, unique).await?,
+        Command::Search { query, session_id } => commands::search::invoke(&query, session_id).await?,
     }
 
     Ok(())
