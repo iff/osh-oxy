@@ -38,6 +38,8 @@ enum Command {
         #[arg(long, default_value = "")]
         query: String,
         #[arg(long)]
+        folder: String,
+        #[arg(long)]
         session_id: Option<String>,
     },
 }
@@ -63,7 +65,11 @@ async fn main() -> anyhow::Result<()> {
             .await?
         }
         Command::Convert {} => commands::convert::invoke().await?,
-        Command::Search { query, session_id } => commands::search::invoke(&query, session_id).await?,
+        Command::Search {
+            query,
+            folder,
+            session_id,
+        } => commands::search::invoke(&query, &folder, session_id).await?,
     }
 
     Ok(())

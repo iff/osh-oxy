@@ -1,4 +1,5 @@
 use std::{
+    fmt::Display,
     fs::File,
     io::Write,
     iter::Copied,
@@ -89,14 +90,37 @@ impl EventReader {
     }
 }
 
+#[derive(Debug)]
+enum EventFilter {
+    Duplicates,
+    SessionId,
+    Folder,
+}
+
+impl Display for EventFilter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        match self {
+            EventFilter::Duplicates => write!(f, "duplicates"),
+            EventFilter::SessionId => write!(f, "session id"),
+            EventFilter::Folder => write!(f, "folder"),
+        }
+    }
+}
+
 pub struct Tui;
 
 impl Tui {
-    pub fn start(receiver: Receiver<Arc<Event>>, session_id: Option<String>) -> Option<Event> {
+    pub fn start(
+        receiver: Receiver<Arc<Event>>,
+        query: &str,
+        folder: &str,
+        session_id: Option<String>,
+    ) -> Option<Event> {
         let reader = EventReader::new().start(receiver);
         Tui::setup_terminal()
             .and_then(|mut terminal| {
-                let result = App::new(reader, session_id).run(&mut terminal);
+                let result = App::new(reader, query.to_string(), folder.to_string(), session_id)
+                    .run(&mut terminal);
                 Tui::restore_terminal(&mut terminal)?;
                 result
             })
@@ -183,11 +207,16 @@ struct App {
     events: Vec<Arc<Event>>,
     /// Currently selected index in the history widget (0 = bottom-most)
     selected_index: usize,
+    /// currently active event filter
+    filter: Option<EventFilter>,
+    query: String,
+    folder: String,
+    /// Current session id
     session_id: Option<String>,
 }
 
 impl App {
-    fn new(reader: EventReader, session_id: Option<String>) -> Self {
+    fn new(reader: EventReader, query: String, folder: String, session_id: Option<String>) -> Self {
         Self {
             input: String::new(),
             history: Vec::new(),
@@ -196,6 +225,9 @@ impl App {
             reader,
             events: Vec::new(),
             selected_index: 0,
+            filter: None,
+            query,
+            folder,
             session_id,
         }
     }
@@ -206,18 +238,51 @@ impl App {
     }
 
     fn run_matcher(&mut self) {
-        // TODO launch matcher - maybe not on every keypress and/or cancle running
         let matcher = fuzzer::FuzzyEngine::new(self.input.clone());
 
-        // TODO parallel matching inside fuzzy engine?
         let scores: Vec<i64> = self
             .events
             .par_iter()
-            .map(|x| matcher.match_line(&x.command))
+            .map(|event| {
+                let passes_filter = match &self.filter {
+                    None => true,
+                    // handle later or maybe keeping those in memory as well
+                    Some(EventFilter::Duplicates) => true,
+                    Some(EventFilter::SessionId) => self
+                        .session_id
+                        .as_ref()
+                        .is_none_or(|sid| event.session == *sid),
+                    Some(EventFilter::Folder) => event.folder == self.folder,
+                };
+
+                if passes_filter {
+                    matcher.match_line(&event.command)
+                } else {
+                    0
+                }
+            })
             .collect();
 
-        let mut indices: Vec<usize> = (0..self.events.len()).filter(|&i| scores[i] > 0).collect();
-        indices.sort_by_key(|&i| std::cmp::Reverse(scores[i]));
+        let mut scored_indices = match &self.filter {
+            Some(EventFilter::Duplicates) => {
+                // TODO not so sure, maybe find a better approach here
+                use std::collections::HashSet;
+                let mut seen = HashSet::new();
+                scores
+                    .into_iter()
+                    .enumerate()
+                    .filter(|(idx, score)| *score > 0 && seen.insert(&self.events[*idx].command))
+                    .collect::<Vec<(usize, i64)>>()
+            }
+            _ => scores
+                .into_par_iter()
+                .enumerate()
+                .filter(|(_, score)| *score > 0)
+                .collect::<Vec<(usize, i64)>>(),
+        };
+
+        scored_indices.sort_by_key(|(_, score)| std::cmp::Reverse(*score));
+        let indices = scored_indices.into_iter().map(|(idx, _)| idx).collect();
         self.indexer = FuzzyIndex::new(indices);
         self.selected_index = 0;
     }
@@ -326,6 +391,15 @@ impl App {
                             return Ok(None);
                         }
                         KeyCode::Char(to_insert) => self.enter_char(to_insert),
+                        KeyCode::Tab => {
+                            self.filter = match &self.filter {
+                                None => Some(EventFilter::Duplicates),
+                                Some(EventFilter::Duplicates) => Some(EventFilter::SessionId),
+                                Some(EventFilter::SessionId) => Some(EventFilter::Folder),
+                                Some(EventFilter::Folder) => None,
+                            };
+                            self.run_matcher();
+                        }
                         KeyCode::Backspace => self.delete_char(),
                         KeyCode::Left => self.move_cursor_left(),
                         KeyCode::Right => self.move_cursor_right(),
@@ -378,8 +452,17 @@ impl App {
         ));
 
         let filtered = self.indexer.len().unwrap_or(self.events.len());
+        let filter = if let Some(f) = &self.filter {
+            format!("{f}")
+        } else {
+            "none".to_string()
+        };
         let status_text = format!("{filtered} / {}", self.history.len());
-        let status_line = Line::from(vec![Span::raw(status_text)]);
+        let status_line = Line::from(vec![
+            Span::raw(status_text),
+            Span::raw(" -- "),
+            Span::raw(filter),
+        ]);
         frame.render_widget(status_line, status_area);
 
         let available_height = history_area.height.saturating_sub(2) as usize;
