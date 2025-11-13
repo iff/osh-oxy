@@ -330,8 +330,8 @@ impl App {
             self.events.len()
         };
         let status_text = format!("{filtered} / {}", self.history.len());
-        let status = Paragraph::new(status_text).style(Style::default().fg(Color::Cyan));
-        frame.render_widget(status, status_area);
+        let status_line = Line::from(vec![Span::raw(status_text)]);
+        frame.render_widget(status_line, status_area);
 
         let available_height = history_area.height.saturating_sub(2) as usize;
         let indices = if let Some(indices) = &self.indices {
