@@ -13,6 +13,7 @@ use crossterm::{
     event::{self, KeyCode},
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
+use itertools::Either;
 use ratatui::{
     Frame, Terminal,
     backend::CrosstermBackend,
@@ -333,42 +334,27 @@ impl App {
         frame.render_widget(status, status_area);
 
         let available_height = history_area.height.saturating_sub(2) as usize;
-        let history = if let Some(indices) = &self.indices {
+        let indices = if let Some(indices) = &self.indices {
             let visible_count = available_height.min(indices.len());
-            let history: Vec<ListItem> = indices[0..visible_count]
-                .iter()
-                .enumerate()
-                .rev()
-                .map(|(i, m)| {
-                    let content = Line::from(Span::raw(self.history[*m].clone()));
-                    let item = ListItem::new(content);
-                    if i == self.selected_index {
-                        item.style(Style::default().bg(Color::DarkGray))
-                    } else {
-                        item
-                    }
-                })
-                .collect();
-            history
+            Either::Left(indices[0..visible_count].iter().copied())
         } else {
             let visible_count = available_height.min(self.history.len());
-            let history: Vec<ListItem> = self.history[0..visible_count]
-                .iter()
-                .enumerate()
-                .rev()
-                .map(|(i, m)| {
-                    let content = Line::from(Span::raw(m));
-                    let item = ListItem::new(content);
-                    if i == self.selected_index {
-                        item.style(Style::default().bg(Color::DarkGray))
-                    } else {
-                        item
-                    }
-                })
-                .collect();
-            history
+            Either::Right(0..visible_count)
         };
 
+        let history: Vec<ListItem> = indices
+            .enumerate()
+            .rev()
+            .map(|(i, m)| {
+                let content = Line::from(Span::raw(self.history[m].clone()));
+                let item = ListItem::new(content);
+                if i == self.selected_index {
+                    item.style(Style::default().bg(Color::DarkGray))
+                } else {
+                    item
+                }
+            })
+            .collect();
         let history_widget = List::new(history).block(Block::bordered());
         frame.render_widget(history_widget, history_area);
 
