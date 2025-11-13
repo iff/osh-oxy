@@ -1,11 +1,15 @@
 use std::{
     fs::File,
     io::Write,
+    iter::Copied,
+    ops::Range,
+    slice::Iter,
     sync::{Arc, Mutex},
     thread,
     time::Duration,
 };
 
+use anyhow::anyhow;
 use chrono::Utc;
 use crossbeam_channel::Receiver;
 use crossterm::{
@@ -54,6 +58,7 @@ mod fuzzer {
 }
 
 struct EventReader {
+    // TODO this is a bit ugly can we refactor this?
     buffer: Arc<Mutex<Vec<Arc<Event>>>>,
 }
 
@@ -99,7 +104,6 @@ fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<File>>> {
     let mut tty = File::options().read(true).write(true).open("/dev/tty")?;
     enable_raw_mode()?;
     tty.execute(EnterAlternateScreen)?;
-
     let backend = CrosstermBackend::new(tty);
     let terminal = Terminal::new(backend)?;
     Ok(terminal)
@@ -113,6 +117,52 @@ fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<File>>) -> anyhow::
     Ok(())
 }
 
+struct FuzzyIndex {
+    // TODO should also own the data?
+    indices: Option<Vec<usize>>,
+}
+
+impl FuzzyIndex {
+    pub fn empty() -> Self {
+        Self { indices: None }
+    }
+
+    pub fn new(indices: Vec<usize>) -> Self {
+        Self {
+            indices: Some(indices),
+        }
+    }
+
+    pub fn len(&self) -> Option<usize> {
+        self.indices.as_ref().map(|ind| ind.len())
+    }
+
+    pub fn indices(&self, num: usize) -> Either<Copied<Iter<'_, usize>>, Range<usize>> {
+        if let Some(indices) = &self.indices {
+            let visible_count = num.min(indices.len());
+            Either::Left(indices[0..visible_count].iter().copied())
+        } else {
+            Either::Right(0..num)
+        }
+    }
+
+    pub fn index(&self, idx: usize) -> Option<usize> {
+        if let Some(indices) = &self.indices {
+            indices.get(idx).copied()
+        } else {
+            Some(idx)
+        }
+    }
+
+    pub fn matcher_score() -> i64 {
+        todo!()
+    }
+
+    pub fn matcher_indices() -> Vec<i64> {
+        todo!()
+    }
+}
+
 /// App holds the state of the application
 struct App {
     /// Current value of the input box
@@ -122,7 +172,7 @@ struct App {
     /// History of recorded messages
     history: Vec<String>,
     /// indices into history sorted according to fuzzer score if we have a query
-    indices: Option<Vec<usize>>,
+    indexer: FuzzyIndex,
     /// Reader for collecting events from background thread
     reader: EventReader,
     /// Accumulated events pool for filtering and matching
@@ -136,12 +186,34 @@ impl App {
         Self {
             input: String::new(),
             history: Vec::new(),
-            indices: None,
+            indexer: FuzzyIndex::empty(),
             character_index: 0,
             reader,
             events: Vec::new(),
             selected_index: 0,
         }
+    }
+
+    fn collect_new_events(&mut self) {
+        let mut new_events = self.reader.take();
+        self.events.append(&mut new_events);
+    }
+
+    fn run_matcher(&mut self) {
+        // TODO launch matcher - maybe not on every keypress and/or cancle running
+        let matcher = fuzzer::FuzzyEngine::new(self.input.clone());
+
+        // TODO parallel matching inside fuzzy engine?
+        let scores: Vec<i64> = self
+            .events
+            .par_iter()
+            .map(|x| matcher.match_line(&x.command))
+            .collect();
+
+        let mut indices: Vec<usize> = (0..self.events.len()).filter(|&i| scores[i] > 0).collect();
+        indices.sort_by_key(|&i| std::cmp::Reverse(scores[i]));
+        self.indexer = FuzzyIndex::new(indices);
+        self.selected_index = 0;
     }
 
     fn move_cursor_left(&mut self) {
@@ -195,27 +267,10 @@ impl App {
         }
 
         if self.input.is_empty() {
-            self.indices = None;
+            self.indexer = FuzzyIndex::empty();
         } else {
             self.run_matcher();
         }
-    }
-
-    fn run_matcher(&mut self) {
-        // TODO launch matcher - maybe not on every keypress and/or cancle running
-        let matcher = fuzzer::FuzzyEngine::new(self.input.clone());
-
-        // TODO parallel matching inside fuzzy engine?
-        let scores: Vec<i64> = self
-            .events
-            .par_iter()
-            .map(|x| matcher.match_line(&x.command))
-            .collect();
-
-        let mut indices: Vec<usize> = (0..self.events.len()).filter(|&i| scores[i] > 0).collect();
-        indices.sort_by_key(|&i| std::cmp::Reverse(scores[i]));
-        self.indices = Some(indices);
-        self.selected_index = 0;
     }
 
     fn move_selection_up(&mut self, available_height: usize) {
@@ -229,11 +284,6 @@ impl App {
 
     fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
         new_cursor_pos.clamp(0, self.input.chars().count())
-    }
-
-    fn collect_new_events(&mut self) {
-        let mut new_events = self.reader.take();
-        self.events.append(&mut new_events);
     }
 
     fn update_display(&mut self) {
@@ -259,11 +309,10 @@ impl App {
                 if let Some(key) = event::read()?.as_key_press_event() {
                     match key.code {
                         KeyCode::Enter => {
-                            let idx = if let Some(indices) = &self.indices {
-                                indices[self.selected_index]
-                            } else {
-                                self.selected_index
-                            };
+                            let idx = self
+                                .indexer
+                                .index(self.selected_index)
+                                .ok_or(anyhow!("index {:?} not in indexer", self.selected_index))?;
                             if let Some(event) = self.events.get(idx) {
                                 let event = Arc::unwrap_or_clone(event.clone());
                                 return Ok(Some(event));
@@ -322,28 +371,20 @@ impl App {
             input_area.y + 1,
         ));
 
-        let filtered = if let Some(indices) = &self.indices {
-            indices.len()
-        } else {
-            self.events.len()
-        };
+        let filtered = self.indexer.len().unwrap_or(self.events.len());
         let status_text = format!("{filtered} / {}", self.history.len());
         let status_line = Line::from(vec![Span::raw(status_text)]);
         frame.render_widget(status_line, status_area);
 
         let available_height = history_area.height.saturating_sub(2) as usize;
-        let indices = if let Some(indices) = &self.indices {
-            let visible_count = available_height.min(indices.len());
-            Either::Left(indices[0..visible_count].iter().copied())
-        } else {
-            let visible_count = available_height.min(self.history.len());
-            Either::Right(0..visible_count)
-        };
 
-        let history: Vec<ListItem> = indices
+        let history: Vec<ListItem> = self
+            .indexer
+            .indices(available_height)
             .enumerate()
             .rev()
             .map(|(i, m)| {
+                // TODO use matcher indices to visualise the matches
                 let content = Line::from(Span::raw(self.history[m].clone()));
                 let item = ListItem::new(content);
                 if i == self.selected_index {
