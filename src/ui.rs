@@ -1,7 +1,6 @@
 use std::{
     fs::File,
-    io::Write,
-    os::fd::{AsRawFd, FromRawFd},
+    io::{self, Write},
     sync::{Arc, Mutex},
     thread,
     time::Duration,
@@ -10,6 +9,7 @@ use std::{
 use chrono::Utc;
 use crossbeam_channel::Receiver;
 use crossterm::{
+    execute,
     ExecutableCommand,
     event::{self, KeyCode},
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
@@ -96,23 +96,19 @@ pub fn ui(receiver: Receiver<Arc<Event>>) -> Option<Event> {
     result.unwrap_or_default()
 }
 
-fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<File>>> {
-    let tty = File::options().read(true).write(true).open("/dev/tty")?;
-    let fd = tty.as_raw_fd();
-
+fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<io::Stdout>>> {
+    // let mut tty = File::options().read(true).write(true).open("/dev/tty")?;
     enable_raw_mode()?;
+    // tty.execute(EnterAlternateScreen)?;
+    execute!(io::stdout(), EnterAlternateScreen)?;
 
-    let mut tty_write = unsafe { File::from_raw_fd(fd) };
-    tty_write.execute(EnterAlternateScreen)?;
-    std::mem::forget(tty_write);
-
-    let backend = CrosstermBackend::new(tty);
+    let backend = CrosstermBackend::new(io::stdout());
     let terminal = Terminal::new(backend)?;
     Ok(terminal)
 }
 
 fn restore_terminal(
-    terminal: &mut Terminal<CrosstermBackend<File>>,
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
 ) -> anyhow::Result<()> {
     terminal.backend_mut().execute(LeaveAlternateScreen)?;
     terminal.show_cursor()?;
@@ -258,7 +254,7 @@ impl App {
 
     fn run(
         mut self,
-        terminal: &mut Terminal<CrosstermBackend<File>>,
+        terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     ) -> anyhow::Result<Option<Event>> {
         self.collect_new_events();
         self.update_display();
