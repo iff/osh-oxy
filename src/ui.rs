@@ -209,7 +209,6 @@ struct App {
     selected_index: usize,
     /// currently active event filter
     filter: Option<EventFilter>,
-    query: String,
     folder: String,
     /// Current session id
     session_id: Option<String>,
@@ -218,7 +217,7 @@ struct App {
 impl App {
     fn new(reader: EventReader, query: String, folder: String, session_id: Option<String>) -> Self {
         Self {
-            input: String::new(),
+            input: query,
             history: Vec::new(),
             indexer: FuzzyIndex::empty(),
             character_index: 0,
@@ -226,7 +225,6 @@ impl App {
             events: Vec::new(),
             selected_index: 0,
             filter: None,
-            query,
             folder,
             session_id,
         }
@@ -453,9 +451,9 @@ impl App {
 
         let filtered = self.indexer.len().unwrap_or(self.events.len());
         let filter = if let Some(f) = &self.filter {
-            format!("{f}")
+            format!("filtered {f}")
         } else {
-            "none".to_string()
+            "".to_string()
         };
         let status_text = format!("{filtered} / {}", self.history.len());
         let status_line = Line::from(vec![

@@ -8,7 +8,7 @@ use crate::{
     osh_files,
 };
 
-pub async fn invoke(session_id: Option<String>, unique: bool) -> anyhow::Result<()> {
+pub async fn invoke(unique: bool) -> anyhow::Result<()> {
     let oshs = osh_files(Kind::JsonLines);
     let all = future::try_join_all(oshs.into_iter().map(load_osh_events)).await?;
 

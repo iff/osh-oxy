@@ -29,8 +29,6 @@ enum Command {
     },
     Cat {
         #[arg(long)]
-        session_id: Option<String>,
-        #[arg(long)]
         unique: bool,
     },
     Convert {},
@@ -49,7 +47,7 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     match args.command {
-        Command::Cat { session_id, unique } => commands::cat::invoke(session_id, unique).await?,
+        Command::Cat { unique } => commands::cat::invoke(unique).await?,
         Command::AppendEvent {
             starttime,
             command,
