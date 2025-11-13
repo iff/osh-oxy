@@ -5,7 +5,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use futures::future;
 use itertools::kmerge_by;
 use osh_oxy::{
-    event::{Event, EventFilter, Events},
+    event::{Event, Events},
     formats::{Kind, json_lines::load_osh_events},
     osh_files,
 };
@@ -43,9 +43,8 @@ fn benchmark_sort_real_data(c: &mut Criterion) {
         return;
     }
 
-    let filter = EventFilter::new(None);
     let all = block_on(future::try_join_all(
-        osh_files.into_iter().map(|f| load_osh_events(f, &filter)),
+        osh_files.into_iter().map(load_osh_events),
     ))
     .unwrap();
     let mut all = all.into_iter().flatten().collect::<Events>();
@@ -69,9 +68,8 @@ fn benchmark_kmerge_real_data(c: &mut Criterion) {
         return;
     }
 
-    let filter = EventFilter::new(None);
     let all = block_on(future::try_join_all(
-        osh_files.into_iter().map(|f| load_osh_events(f, &filter)),
+        osh_files.into_iter().map(load_osh_events),
     ))
     .unwrap();
 

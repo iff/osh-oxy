@@ -9,7 +9,7 @@ use tokio::{
 use tokio_stream::StreamExt;
 
 use crate::{
-    event::{Event, EventFilter, Events},
+    event::{Event, Events},
     formats::EventWriter,
 };
 
@@ -81,17 +81,14 @@ impl<W: AsyncWrite + Unpin + Send> EventWriter for JsonLinesEventWriter<W> {
     }
 }
 
-pub async fn load_osh_events(
-    osh_file: impl AsRef<Path>,
-    filter: &EventFilter,
-) -> std::io::Result<Events> {
+pub async fn load_osh_events(osh_file: impl AsRef<Path>) -> std::io::Result<Events> {
     let fp = BufReader::new(File::open(osh_file).await?);
     let reader = AsyncJsonLinesReader::new(fp);
 
     Ok(reader
         .read_all::<Entry>()
         .filter_map(|entry_result| match entry_result {
-            Ok(entry) => entry.maybe_event().and_then(|e| filter.apply(e)),
+            Ok(entry) => entry.maybe_event(),
             Err(_) => None,
         })
         .collect::<Events>()
@@ -106,8 +103,7 @@ mod test {
 
     #[tokio::test]
     async fn test_parsing_osh_file() -> anyhow::Result<()> {
-        let filter = EventFilter::new(None);
-        let events = load_osh_events(Path::new("tests/local.osh"), &filter).await?;
+        let events = load_osh_events(Path::new("tests/local.osh")).await?;
         assert_eq!(events.len(), 5);
         Ok(())
     }

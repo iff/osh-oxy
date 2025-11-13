@@ -2,15 +2,13 @@ use anyhow::Context;
 use tokio::fs::File;
 
 use crate::{
-    event::EventFilter,
     formats::{EventWriter, Kind, json_lines, rmp::AsyncBinaryWriter},
     osh_files,
 };
 
 pub async fn invoke() -> anyhow::Result<()> {
     for path in osh_files(Kind::JsonLines) {
-        let filter = EventFilter::new(None);
-        let events = json_lines::load_osh_events(path.clone(), &filter)
+        let events = json_lines::load_osh_events(path.clone())
             .await
             .context("Failed to load events from JSON lines file")?;
 

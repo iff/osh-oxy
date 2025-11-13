@@ -4,7 +4,7 @@ use futures::future;
 use itertools::{Either, Itertools, kmerge_by};
 
 use crate::{
-    event::{Event, EventFilter},
+    event::Event,
     formats::{Kind, json_lines},
     osh_files, ui,
 };
@@ -12,13 +12,7 @@ use crate::{
 pub async fn invoke(_query: &str, session_id: Option<String>, unique: bool) -> anyhow::Result<()> {
     let oshs = osh_files(Kind::JsonLines);
 
-    // TODO filter here and in parallel?
-    let filter = EventFilter::new(session_id);
-    let all = future::try_join_all(
-        oshs.into_iter()
-            .map(|f| json_lines::load_osh_events(f, &filter)),
-    )
-    .await?;
+    let all = future::try_join_all(oshs.into_iter().map(json_lines::load_osh_events)).await?;
 
     let (tx_item, receiver) = crossbeam_channel::unbounded();
     thread::spawn(move || {
