@@ -1,10 +1,9 @@
-- use bind to switch between filtered and unfiltered
-    - probably need a reload command (output to stdout) and bind that: `"tab:reload(osh-oxy reload --all)"`
-    r reimplement basics we need (tui with ratatui and fuzzy-matcher as lib)
-      - refactor index and selection handling
-      - move filtering into ui to be able to switch between modes
-      - not sure about event loop and interaction with matcher/reader
-      - cancel running matchers if we type
+r reimplement basics we need (tui with ratatui and fuzzy-matcher as lib) to enable reload/filters
+  - refactor index and selection handling
+  - highlight matches via indices returned from fuzzy indices
+  - move filtering into ui to be able to switch between modes
+  - not sure about event loop and interaction with matcher/reader
+  - cancel running matchers if we type
 - look at binary formats or use my own
     - https://capnproto.org/
     - https://github.com/capnproto/capnproto-rust?tab=readme-ov-file

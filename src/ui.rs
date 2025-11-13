@@ -53,11 +53,11 @@ mod fuzzer {
     }
 }
 
-struct Reader {
+struct EventReader {
     buffer: Arc<Mutex<Vec<Arc<Event>>>>,
 }
 
-impl Reader {
+impl EventReader {
     fn new() -> Self {
         Self {
             buffer: Arc::new(Mutex::new(Vec::new())),
@@ -85,7 +85,7 @@ impl Reader {
 }
 
 pub fn ui(receiver: Receiver<Arc<Event>>) -> Option<Event> {
-    let reader = Reader::new().start(receiver);
+    let reader = EventReader::new().start(receiver);
     setup_terminal()
         .and_then(|mut terminal| {
             let result = App::new(reader).run(&mut terminal);
@@ -124,7 +124,7 @@ struct App {
     /// indices into history sorted according to fuzzer score if we have a query
     indices: Option<Vec<usize>>,
     /// Reader for collecting events from background thread
-    reader: Reader,
+    reader: EventReader,
     /// Accumulated events pool for filtering and matching
     events: Vec<Arc<Event>>,
     /// Currently selected index in the history widget (0 = bottom-most)
@@ -132,7 +132,7 @@ struct App {
 }
 
 impl App {
-    fn new(reader: Reader) -> Self {
+    fn new(reader: EventReader) -> Self {
         Self {
             input: String::new(),
             history: Vec::new(),
@@ -158,8 +158,6 @@ impl App {
         let index = self.byte_index();
         self.input.insert(index, new_char);
         self.move_cursor_right();
-
-        // TODO only if query is not empty but here we only trigger after keypress so okay
         self.run_matcher();
     }
 
