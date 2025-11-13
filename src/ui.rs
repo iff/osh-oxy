@@ -89,32 +89,36 @@ impl EventReader {
     }
 }
 
-pub fn ui(receiver: Receiver<Arc<Event>>, session_id: Option<String>) -> Option<Event> {
-    let reader = EventReader::new().start(receiver);
-    setup_terminal()
-        .and_then(|mut terminal| {
-            let result = App::new(reader, session_id).run(&mut terminal);
-            restore_terminal(&mut terminal)?;
-            result
-        })
-        .unwrap_or_default()
-}
+pub struct Tui;
 
-fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<File>>> {
-    let mut tty = File::options().read(true).write(true).open("/dev/tty")?;
-    enable_raw_mode()?;
-    tty.execute(EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(tty);
-    let terminal = Terminal::new(backend)?;
-    Ok(terminal)
-}
+impl Tui {
+    pub fn start(receiver: Receiver<Arc<Event>>, session_id: Option<String>) -> Option<Event> {
+        let reader = EventReader::new().start(receiver);
+        Tui::setup_terminal()
+            .and_then(|mut terminal| {
+                let result = App::new(reader, session_id).run(&mut terminal);
+                Tui::restore_terminal(&mut terminal)?;
+                result
+            })
+            .unwrap_or_default()
+    }
 
-fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<File>>) -> anyhow::Result<()> {
-    terminal.backend_mut().execute(LeaveAlternateScreen)?;
-    terminal.show_cursor()?;
-    disable_raw_mode()?;
-    terminal.backend_mut().flush()?;
-    Ok(())
+    fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<File>>> {
+        let mut tty = File::options().read(true).write(true).open("/dev/tty")?;
+        enable_raw_mode()?;
+        tty.execute(EnterAlternateScreen)?;
+        let backend = CrosstermBackend::new(tty);
+        let terminal = Terminal::new(backend)?;
+        Ok(terminal)
+    }
+
+    fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<File>>) -> anyhow::Result<()> {
+        terminal.backend_mut().execute(LeaveAlternateScreen)?;
+        terminal.show_cursor()?;
+        disable_raw_mode()?;
+        terminal.backend_mut().flush()?;
+        Ok(())
+    }
 }
 
 struct FuzzyIndex {

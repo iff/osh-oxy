@@ -6,7 +6,8 @@ use itertools::{Either, Itertools, kmerge_by};
 use crate::{
     event::Event,
     formats::{Kind, json_lines},
-    osh_files, ui,
+    osh_files,
+    ui::Tui,
 };
 
 pub async fn invoke(_query: &str, session_id: Option<String>) -> anyhow::Result<()> {
@@ -35,7 +36,7 @@ pub async fn invoke(_query: &str, session_id: Option<String>) -> anyhow::Result<
         drop(tx_item);
     });
 
-    let selected = ui::ui(receiver, session_id);
+    let selected = Tui::start(receiver, session_id);
     if let Some(event) = selected {
         println!("{}", event.command);
     }
