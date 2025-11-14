@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use osh_oxy::commands;
+use osh_oxy::{commands, ui::EventFilter};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -39,6 +39,8 @@ enum Command {
         folder: String,
         #[arg(long)]
         session_id: Option<String>,
+        #[arg(long)]
+        filter: Option<EventFilter>,
     },
 }
 
@@ -67,7 +69,8 @@ async fn main() -> anyhow::Result<()> {
             query,
             folder,
             session_id,
-        } => commands::search::invoke(&query, &folder, session_id).await?,
+            filter,
+        } => commands::search::invoke(&query, &folder, session_id, filter).await?,
     }
 
     Ok(())

@@ -5,6 +5,7 @@ use std::{
     iter::Copied,
     ops::Range,
     slice::Iter,
+    str::FromStr,
     sync::{Arc, Mutex},
     thread,
     time::Duration,
@@ -90,8 +91,8 @@ impl EventReader {
     }
 }
 
-#[derive(Debug)]
-enum EventFilter {
+#[derive(Debug, Clone)]
+pub enum EventFilter {
     Duplicates,
     SessionId,
     Folder,
@@ -107,6 +108,29 @@ impl Display for EventFilter {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct ParseEventFilterError(String);
+
+impl std::fmt::Display for ParseEventFilterError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid event filter: {}", self.0)
+    }
+}
+
+impl std::error::Error for ParseEventFilterError {}
+
+impl FromStr for EventFilter {
+    type Err = ParseEventFilterError;
+    fn from_str(filter: &str) -> std::result::Result<Self, Self::Err> {
+        match filter {
+            "duplicates" => Ok(EventFilter::Duplicates),
+            "session_id" => Ok(EventFilter::SessionId),
+            "folder" => Ok(EventFilter::Folder),
+            _ => Err(ParseEventFilterError(filter.to_string())),
+        }
+    }
+}
+
 pub struct Tui;
 
 impl Tui {
@@ -115,12 +139,19 @@ impl Tui {
         query: &str,
         folder: &str,
         session_id: Option<String>,
+        filter: Option<EventFilter>,
     ) -> Option<Event> {
         let reader = EventReader::new().start(receiver);
         Tui::setup_terminal()
             .and_then(|mut terminal| {
-                let result = App::new(reader, query.to_string(), folder.to_string(), session_id)
-                    .run(&mut terminal);
+                let result = App::new(
+                    reader,
+                    query.to_string(),
+                    folder.to_string(),
+                    session_id,
+                    filter,
+                )
+                .run(&mut terminal);
                 Tui::restore_terminal(&mut terminal)?;
                 result
             })
@@ -215,19 +246,28 @@ struct App {
 }
 
 impl App {
-    fn new(reader: EventReader, query: String, folder: String, session_id: Option<String>) -> Self {
-        Self {
+    fn new(
+        reader: EventReader,
+        query: String,
+        folder: String,
+        session_id: Option<String>,
+        filter: Option<EventFilter>,
+    ) -> Self {
+        let character_index = query.len();
+        let mut s = Self {
             input: query,
             history: Vec::new(),
             indexer: FuzzyIndex::empty(),
-            character_index: 0,
+            character_index,
             reader,
             events: Vec::new(),
             selected_index: 0,
-            filter: None,
+            filter,
             folder,
             session_id,
-        }
+        };
+        s.run_matcher();
+        s
     }
 
     fn collect_new_events(&mut self) {

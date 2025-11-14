@@ -7,10 +7,15 @@ use crate::{
     event::Event,
     formats::{Kind, json_lines},
     osh_files,
-    ui::Tui,
+    ui::{EventFilter, Tui},
 };
 
-pub async fn invoke(query: &str, folder: &str, session_id: Option<String>) -> anyhow::Result<()> {
+pub async fn invoke(
+    query: &str,
+    folder: &str,
+    session_id: Option<String>,
+    filter: Option<EventFilter>,
+) -> anyhow::Result<()> {
     let oshs = osh_files(Kind::JsonLines);
 
     let all = future::try_join_all(oshs.into_iter().map(json_lines::load_osh_events)).await?;
@@ -26,7 +31,7 @@ pub async fn invoke(query: &str, folder: &str, session_id: Option<String>) -> an
         drop(tx_item);
     });
 
-    let selected = Tui::start(receiver, query, folder, session_id);
+    let selected = Tui::start(receiver, query, folder, session_id, filter);
     if let Some(event) = selected {
         println!("{}", event.command);
     }
