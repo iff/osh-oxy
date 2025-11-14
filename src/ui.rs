@@ -213,13 +213,13 @@ impl FuzzyIndex {
         }
     }
 
-    pub fn matcher_score() -> i64 {
-        todo!()
-    }
-
-    pub fn matcher_indices() -> Vec<i64> {
-        todo!()
-    }
+    // pub fn matcher_score() -> i64 {
+    //     todo!()
+    // }
+    //
+    // pub fn matcher_indices() -> Vec<i64> {
+    //     todo!()
+    // }
 }
 
 /// App holds the state of the application
