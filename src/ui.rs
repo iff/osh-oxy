@@ -61,6 +61,7 @@ mod fuzzer {
 
 struct EventReader {
     // TODO this is a bit ugly can we refactor this?
+    // maybe Cow is enough here
     buffer: Arc<Mutex<Vec<Arc<Event>>>>,
 }
 
@@ -254,7 +255,7 @@ impl App {
         filter: Option<EventFilter>,
     ) -> Self {
         let character_index = query.len();
-        let mut s = Self {
+        Self {
             input: query,
             history: Vec::new(),
             indexer: FuzzyIndex::empty(),
@@ -265,9 +266,7 @@ impl App {
             filter,
             folder,
             session_id,
-        };
-        s.run_matcher();
-        s
+        }
     }
 
     fn collect_new_events(&mut self) {
@@ -456,6 +455,7 @@ impl App {
                 let events_before = self.events.len();
                 self.collect_new_events();
                 if self.events.len() != events_before {
+                    self.run_matcher();
                     self.update_display();
                     terminal.draw(|frame| self.render(frame))?;
                 }
