@@ -1,8 +1,10 @@
 r reimplement basics we need (tui with ratatui and fuzzy-matcher as lib) to enable reload/filters
   - refactor index and selection handling
+  - fuzzer in owm module
   - hardcoded offsets (height...)
+  - cache filter views?
+  - combine filters?
   - highlight matches via indices returned from fuzzy indices
-  - move filtering into ui to be able to switch between modes
   - not sure about event loop and interaction with matcher/reader
   - cancel running matchers if we type
 - look at binary formats or use my own
