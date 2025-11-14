@@ -16,7 +16,7 @@ concurrency:
 jobs:
   fmt:
     runs-on: ubuntu-latest
-    name: stable / fmt
+    name: nightly / fmt
     steps:
       - uses: actions/checkout@v4
       - name: install stable
