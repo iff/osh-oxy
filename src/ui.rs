@@ -1,0 +1,531 @@
+use std::{
+    fmt::Display,
+    fs::File,
+    io::Write,
+    iter::Copied,
+    ops::Range,
+    slice::Iter,
+    str::FromStr,
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
+
+use anyhow::anyhow;
+use chrono::Utc;
+use crossbeam_channel::Receiver;
+use crossterm::{
+    ExecutableCommand,
+    event::{self, KeyCode},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+};
+use itertools::Either;
+use ratatui::{
+    Frame, Terminal,
+    backend::CrosstermBackend,
+    layout::{Constraint, Layout, Position},
+    style::{Color, Style, Stylize},
+    text::{Line, Span, Text},
+    widgets::{Block, List, ListItem, Paragraph},
+};
+use rayon::prelude::*;
+
+use crate::event::Event;
+
+mod fuzzer {
+    use fuzzy_matcher::{FuzzyMatcher, skim::SkimMatcherV2};
+    const BYTES_1M: usize = 1024 * 1024 * 1024;
+
+    pub struct FuzzyEngine {
+        query: String,
+        matcher: SkimMatcherV2,
+    }
+
+    impl FuzzyEngine {
+        pub fn new(query: String) -> Self {
+            let matcher = SkimMatcherV2::default().element_limit(BYTES_1M);
+            let matcher = matcher.smart_case();
+            FuzzyEngine { matcher, query }
+        }
+
+        pub fn match_line(&self, line: &str) -> i64 {
+            if let Some((score, _indices)) = self.matcher.fuzzy_indices(line, &self.query) {
+                // TODO return indices for nicer vis
+                return score;
+            }
+
+            0
+        }
+    }
+}
+
+struct EventReader {
+    // TODO this is a bit ugly can we refactor this?
+    // maybe Cow is enough here
+    buffer: Arc<Mutex<Vec<Arc<Event>>>>,
+}
+
+impl EventReader {
+    fn new() -> Self {
+        Self {
+            buffer: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    fn start(self, receiver: Receiver<Arc<Event>>) -> Self {
+        let buffer = Arc::clone(&self.buffer);
+        thread::spawn(move || {
+            while let Ok(event) = receiver.recv() {
+                if let Ok(mut buffer) = buffer.lock() {
+                    buffer.push(event);
+                }
+            }
+        });
+        self
+    }
+
+    fn take(&self) -> Vec<Arc<Event>> {
+        self.buffer
+            .lock()
+            .map(|mut buffer| std::mem::take(&mut *buffer))
+            .unwrap_or_default()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum EventFilter {
+    Duplicates,
+    SessionId,
+    Folder,
+}
+
+impl Display for EventFilter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        match self {
+            EventFilter::Duplicates => write!(f, "duplicates"),
+            EventFilter::SessionId => write!(f, "session id"),
+            EventFilter::Folder => write!(f, "folder"),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct ParseEventFilterError(String);
+
+impl std::fmt::Display for ParseEventFilterError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid event filter: {}", self.0)
+    }
+}
+
+impl std::error::Error for ParseEventFilterError {}
+
+impl FromStr for EventFilter {
+    type Err = ParseEventFilterError;
+    fn from_str(filter: &str) -> std::result::Result<Self, Self::Err> {
+        match filter {
+            "duplicates" => Ok(EventFilter::Duplicates),
+            "session_id" => Ok(EventFilter::SessionId),
+            "folder" => Ok(EventFilter::Folder),
+            _ => Err(ParseEventFilterError(filter.to_string())),
+        }
+    }
+}
+
+pub struct Tui;
+
+impl Tui {
+    pub fn start(
+        receiver: Receiver<Arc<Event>>,
+        query: &str,
+        folder: &str,
+        session_id: Option<String>,
+        filter: Option<EventFilter>,
+    ) -> Option<Event> {
+        let reader = EventReader::new().start(receiver);
+        Tui::setup_terminal()
+            .and_then(|mut terminal| {
+                let result = App::new(
+                    reader,
+                    query.to_string(),
+                    folder.to_string(),
+                    session_id,
+                    filter,
+                )
+                .run(&mut terminal);
+                Tui::restore_terminal(&mut terminal)?;
+                result
+            })
+            .unwrap_or_default()
+    }
+
+    fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<File>>> {
+        let mut tty = File::options().read(true).write(true).open("/dev/tty")?;
+        enable_raw_mode()?;
+        tty.execute(EnterAlternateScreen)?;
+        let backend = CrosstermBackend::new(tty);
+        let terminal = Terminal::new(backend)?;
+        Ok(terminal)
+    }
+
+    fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<File>>) -> anyhow::Result<()> {
+        terminal.backend_mut().execute(LeaveAlternateScreen)?;
+        terminal.show_cursor()?;
+        disable_raw_mode()?;
+        terminal.backend_mut().flush()?;
+        Ok(())
+    }
+}
+
+struct FuzzyIndex {
+    // TODO should also own the data?
+    indices: Option<Vec<usize>>,
+}
+
+impl FuzzyIndex {
+    pub fn empty() -> Self {
+        Self { indices: None }
+    }
+
+    pub fn new(indices: Vec<usize>) -> Self {
+        Self {
+            indices: Some(indices),
+        }
+    }
+
+    pub fn len(&self) -> Option<usize> {
+        self.indices.as_ref().map(|ind| ind.len())
+    }
+
+    pub fn indices(&self, num: usize) -> Either<Copied<Iter<'_, usize>>, Range<usize>> {
+        if let Some(indices) = &self.indices {
+            let visible_count = num.min(indices.len());
+            Either::Left(indices[0..visible_count].iter().copied())
+        } else {
+            Either::Right(0..num)
+        }
+    }
+
+    pub fn index(&self, idx: usize) -> Option<usize> {
+        if let Some(indices) = &self.indices {
+            indices.get(idx).copied()
+        } else {
+            Some(idx)
+        }
+    }
+
+    // pub fn matcher_score() -> i64 {
+    //     todo!()
+    // }
+    //
+    // pub fn matcher_indices() -> Vec<i64> {
+    //     todo!()
+    // }
+}
+
+/// App holds the state of the application
+struct App {
+    /// Current value of the input box
+    input: String,
+    /// Position of cursor in the editor area.
+    character_index: usize,
+    /// History of recorded messages
+    history: Vec<String>,
+    /// indices into history sorted according to fuzzer score if we have a query
+    indexer: FuzzyIndex,
+    /// Reader for collecting events from background thread
+    reader: EventReader,
+    /// Accumulated events pool for filtering and matching
+    events: Vec<Arc<Event>>,
+    /// Currently selected index in the history widget (0 = bottom-most)
+    selected_index: usize,
+    /// currently active event filter
+    filter: Option<EventFilter>,
+    folder: String,
+    /// Current session id
+    session_id: Option<String>,
+}
+
+impl App {
+    fn new(
+        reader: EventReader,
+        query: String,
+        folder: String,
+        session_id: Option<String>,
+        filter: Option<EventFilter>,
+    ) -> Self {
+        let character_index = query.len();
+        Self {
+            input: query,
+            history: Vec::new(),
+            indexer: FuzzyIndex::empty(),
+            character_index,
+            reader,
+            events: Vec::new(),
+            selected_index: 0,
+            filter,
+            folder,
+            session_id,
+        }
+    }
+
+    fn collect_new_events(&mut self) {
+        let mut new_events = self.reader.take();
+        self.events.append(&mut new_events);
+    }
+
+    fn run_matcher(&mut self) {
+        if self.input.is_empty() {
+            self.indexer = FuzzyIndex::empty();
+            return;
+        }
+
+        let matcher = fuzzer::FuzzyEngine::new(self.input.clone());
+
+        let scores: Vec<i64> = self
+            .events
+            .par_iter()
+            .map(|event| {
+                let passes_filter = match &self.filter {
+                    None => true,
+                    // handle later or maybe keeping those in memory as well
+                    Some(EventFilter::Duplicates) => true,
+                    Some(EventFilter::SessionId) => self
+                        .session_id
+                        .as_ref()
+                        .is_none_or(|sid| event.session == *sid),
+                    Some(EventFilter::Folder) => event.folder == self.folder,
+                };
+
+                if passes_filter {
+                    matcher.match_line(&event.command)
+                } else {
+                    0
+                }
+            })
+            .collect();
+
+        let mut scored_indices = match &self.filter {
+            Some(EventFilter::Duplicates) => {
+                // TODO not so sure, maybe find a better approach here
+                use std::collections::HashSet;
+                let mut seen = HashSet::new();
+                scores
+                    .into_iter()
+                    .enumerate()
+                    .filter(|(idx, score)| *score > 0 && seen.insert(&self.events[*idx].command))
+                    .collect::<Vec<(usize, i64)>>()
+            }
+            _ => scores
+                .into_par_iter()
+                .enumerate()
+                .filter(|(_, score)| *score > 0)
+                .collect::<Vec<(usize, i64)>>(),
+        };
+
+        scored_indices.sort_by_key(|(_, score)| std::cmp::Reverse(*score));
+        let indices = scored_indices.into_iter().map(|(idx, _)| idx).collect();
+        self.indexer = FuzzyIndex::new(indices);
+        // TODO overwrite (or max)?
+        self.selected_index = 0;
+    }
+
+    fn move_cursor_left(&mut self) {
+        let cursor_moved_left = self.character_index.saturating_sub(1);
+        self.character_index = self.clamp_cursor(cursor_moved_left);
+    }
+
+    fn move_cursor_right(&mut self) {
+        let cursor_moved_right = self.character_index.saturating_add(1);
+        self.character_index = self.clamp_cursor(cursor_moved_right);
+    }
+
+    fn enter_char(&mut self, new_char: char) {
+        let index = self.byte_index();
+        self.input.insert(index, new_char);
+        self.move_cursor_right();
+        self.run_matcher();
+    }
+
+    /// Returns the byte index based on the character position.
+    ///
+    /// Since each character in a string can contain multiple bytes, it's necessary to calculate
+    /// the byte index based on the index of the character.
+    fn byte_index(&self) -> usize {
+        self.input
+            .char_indices()
+            .map(|(i, _)| i)
+            .nth(self.character_index)
+            .unwrap_or(self.input.len())
+    }
+
+    fn delete_char(&mut self) {
+        let is_not_cursor_leftmost = self.character_index != 0;
+        if is_not_cursor_leftmost {
+            // Method "remove" is not used on the saved text for deleting the selected char.
+            // Reason: Using remove on String works on bytes instead of the chars.
+            // Using remove would require special care because of char boundaries.
+
+            let current_index = self.character_index;
+            let from_left_to_current_index = current_index - 1;
+
+            // Getting all characters before the selected character.
+            let before_char_to_delete = self.input.chars().take(from_left_to_current_index);
+            // Getting all characters after selected character.
+            let after_char_to_delete = self.input.chars().skip(current_index);
+
+            // Put all characters together except the selected one.
+            // By leaving the selected one out, it is forgotten and therefore deleted.
+            self.input = before_char_to_delete.chain(after_char_to_delete).collect();
+            self.move_cursor_left();
+        }
+
+        self.run_matcher();
+    }
+
+    fn move_selection_up(&mut self, available_height: usize) {
+        let max_index = available_height.saturating_sub(3);
+        self.selected_index = (self.selected_index + 1).min(max_index);
+    }
+
+    fn move_selection_down(&mut self) {
+        self.selected_index = self.selected_index.saturating_sub(1);
+    }
+
+    fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
+        new_cursor_pos.clamp(0, self.input.chars().count())
+    }
+
+    fn update_display(&mut self) {
+        self.history.clear();
+        let f = timeago::Formatter::new();
+        for event in &self.events {
+            let ago = f.convert_chrono(event.endtime(), Utc::now());
+            let pretty = format!("{ago} --- {}", event.command);
+            self.history.push(pretty);
+        }
+    }
+
+    fn run(
+        mut self,
+        terminal: &mut Terminal<CrosstermBackend<File>>,
+    ) -> anyhow::Result<Option<Event>> {
+        self.collect_new_events();
+        self.update_display();
+        terminal.draw(|frame| self.render(frame))?;
+
+        loop {
+            if event::poll(Duration::from_millis(100))? {
+                if let Some(key) = event::read()?.as_key_press_event() {
+                    match key.code {
+                        KeyCode::Enter => {
+                            let idx = self
+                                .indexer
+                                .index(self.selected_index)
+                                .ok_or(anyhow!("index {:?} not in indexer", self.selected_index))?;
+                            if let Some(event) = self.events.get(idx) {
+                                let event = Arc::unwrap_or_clone(event.clone());
+                                return Ok(Some(event));
+                            }
+                            return Ok(None);
+                        }
+                        KeyCode::Char(to_insert) => self.enter_char(to_insert),
+                        KeyCode::Tab => {
+                            self.filter = match &self.filter {
+                                None => Some(EventFilter::Duplicates),
+                                Some(EventFilter::Duplicates) => Some(EventFilter::SessionId),
+                                Some(EventFilter::SessionId) => Some(EventFilter::Folder),
+                                Some(EventFilter::Folder) => None,
+                            };
+                            self.run_matcher();
+                        }
+                        KeyCode::Backspace => self.delete_char(),
+                        KeyCode::Left => self.move_cursor_left(),
+                        KeyCode::Right => self.move_cursor_right(),
+                        KeyCode::Up => {
+                            let available_height =
+                                terminal.size()?.height.saturating_sub(5) as usize;
+                            self.move_selection_up(available_height);
+                        }
+                        KeyCode::Down => self.move_selection_down(),
+                        KeyCode::Esc => return Ok(None),
+                        _ => {}
+                    }
+                    terminal.draw(|frame| self.render(frame))?;
+                }
+            } else {
+                let events_before = self.events.len();
+                self.collect_new_events();
+                if self.events.len() != events_before {
+                    self.run_matcher();
+                    self.update_display();
+                    terminal.draw(|frame| self.render(frame))?;
+                }
+            }
+        }
+    }
+
+    fn render(&self, frame: &mut Frame) {
+        let layout = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Min(1),
+            Constraint::Length(1),
+            Constraint::Length(3),
+        ]);
+        let [title_area, history_area, status_area, input_area] = frame.area().layout(&layout);
+
+        let (msg, style) = (vec!["osh-oxy".bold()], Style::default());
+        let text = Text::from(Line::from(msg)).patch_style(style);
+        let title = Paragraph::new(text);
+        frame.render_widget(title, title_area);
+
+        let input = Paragraph::new(self.input.as_str())
+            .style(Style::default().fg(Color::Yellow).not_bold())
+            .block(Block::bordered().title(" search "));
+        frame.render_widget(input, input_area);
+        frame.set_cursor_position(Position::new(
+            // Draw the cursor at the current position in the input field.
+            // This position can be controlled via the left and right arrow key
+            input_area.x + self.character_index as u16 + 1,
+            // Move one line down, from the border to the input line
+            input_area.y + 1,
+        ));
+
+        let filtered = self.indexer.len().unwrap_or(self.events.len());
+        let filter = if let Some(f) = &self.filter {
+            format!("filtered {f}")
+        } else {
+            "".to_string()
+        };
+        let status_text = format!("{filtered} / {}", self.history.len());
+        let status_line = Line::from(vec![
+            Span::raw(status_text),
+            Span::raw(" -- "),
+            Span::raw(filter),
+        ]);
+        frame.render_widget(status_line, status_area);
+
+        let available_height = history_area.height.saturating_sub(2) as usize;
+
+        let history: Vec<ListItem> = self
+            .indexer
+            .indices(available_height)
+            .enumerate()
+            .rev()
+            .map(|(i, m)| {
+                // TODO use matcher indices to visualise the matches
+                let content = Line::from(Span::raw(self.history[m].clone()));
+                let item = ListItem::new(content);
+                if i == self.selected_index {
+                    item.style(Style::default().bg(Color::DarkGray))
+                } else {
+                    item
+                }
+            })
+            .collect();
+        let history_widget = List::new(history).block(Block::bordered());
+        frame.render_widget(history_widget, history_area);
+
+        // TODO preview
+    }
+}

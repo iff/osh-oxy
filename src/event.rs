@@ -1,10 +1,10 @@
-use std::{borrow::Cow, option::Option, path::PathBuf};
+use std::{option::Option, path::PathBuf};
 
 use arbitrary::{Arbitrary, Result, Unstructured};
 use chrono::{DateTime, Local, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
-use skim::{AnsiString, DisplayContext, ItemPreview, PreviewContext, SkimItem};
 
+// use skim::{AnsiString, DisplayContext, ItemPreview, PreviewContext, SkimItem};
 use crate::formats::EventWriter;
 
 /// the metadata we store for each history entry
@@ -56,79 +56,4 @@ impl<'a> Arbitrary<'a> for Event {
     }
 }
 
-impl SkimItem for Event {
-    fn text(&self) -> Cow<'_, str> {
-        Cow::Borrowed(&self.command)
-    }
-
-    fn display<'a>(&'a self, _context: DisplayContext<'a>) -> AnsiString<'a> {
-        // TODO context?
-        let f = timeago::Formatter::new();
-        let ago = f.convert_chrono(self.timestamp, Utc::now());
-        AnsiString::new_string(format!("{ago} --- {}", self.command), Vec::new())
-    }
-
-    fn output(&self) -> Cow<'_, str> {
-        Cow::Borrowed(&self.command)
-    }
-
-    fn preview(&self, _context: PreviewContext) -> ItemPreview {
-        let f = timeago::Formatter::new();
-        let ago = f.convert_chrono(self.timestamp, Utc::now());
-        ItemPreview::Text(format!(
-            "[{}] [exit_code={}]\n{}",
-            ago, self.exit_code, self.command
-        ))
-    }
-}
-
 pub type Events = Vec<Event>;
-
-// TODO maybe later something more generic
-pub struct EventFilter {
-    session_id: Option<String>,
-}
-
-impl EventFilter {
-    pub fn new(session_id: Option<String>) -> Self {
-        Self { session_id }
-    }
-
-    pub fn apply(&self, event: Event) -> Option<Event> {
-        match &self.session_id {
-            None => {}
-            Some(session_id) => {
-                if event.session != *session_id {
-                    return None;
-                }
-            }
-        }
-
-        Some(event)
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use std::path::Path;
-
-    use super::*;
-    use crate::formats::json_lines;
-
-    macro_rules! aw {
-        ($e:expr) => {
-            tokio_test::block_on($e)
-        };
-    }
-
-    #[test]
-    fn test_filter_session_id() {
-        let filter = EventFilter::new(Some(String::from("5ed2cbda-4821-4f00-8a67-468aaa301377")));
-        let events = aw!(json_lines::load_osh_events(
-            Path::new("tests/local.osh"),
-            &filter
-        ))
-        .unwrap();
-        assert_eq!(events.len(), 2);
-    }
-}

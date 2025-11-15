@@ -7,8 +7,6 @@ Currently it offers two commands to append and search:
 - append to osh history file
 - search all \*.osh history files with skim
 
-Example [zsh integration](https://github.com/iff/fleet/blob/14d6e4159f2db62a0bc2ccb4bcec85f8a796585e/home/modules/shell/zsh/zshrcd/osh.zsh).
-
 ## installation (nix flake)
 
 build with nix:
@@ -38,4 +36,80 @@ I organise my osh files per host:
 │   ├── name.osh
 │   └── xyz.osh
 └── local.osh -> active/host.osh
+```
+
+## search command
+
+The search command accepts the following arguments:
+
+```
+osh-oxy search --folder <FOLDER> [--query <QUERY>] [--session_id <SESSION_ID>] [--filter <FILTER>]
+```
+
+**Required arguments:**
+
+- `--folder <FOLDER>`: The current working directory to use for filtring
+
+**Optional arguments:**
+
+- `--query <QUERY>`: Initial search query (defaults to empty string if not provided)
+- `--session_id <SESSION_ID>`: Filter results to a specific shell session ID. When provided and the `session_id` filter is active, only commands from this session will be shown
+- `--filter <FILTER>`: Initial filter mode to apply (defaults to none if omitted). Valid values:
+  - `duplicates`: Hide duplicate commands, showing only unique entries
+  - `session_id`: Filter by the provided session ID
+  - `folder`: Filter to commands run in the same folder
+
+The filter can be cycled through at runtime using the Tab key (none → duplicates → session_id → folder → none).
+
+## example zsh integration
+
+```
+function __osh {
+    osh-oxy $@
+}
+
+autoload -U add-zsh-hook
+
+function __osh_before {
+    local command=''${1[0,-2]}
+    if [[ $command != "" ]]; then
+        __osh_current_command=(
+            --starttime $(__osh_ts)
+            --command $command
+            --folder "$(pwd)"
+        )
+    fi
+}
+add-zsh-hook zshaddhistory __osh_before
+
+function __osh_after {
+    local exit_code=$?
+    if [[ ! -v __osh_session_id ]]; then
+        __osh_session_id=$(uuidgen)
+    fi
+    if [[ -v __osh_current_command ]]; then
+    __osh_current_command+=(
+            --endtime $(__osh_ts)
+            --exit-code $exit_code
+            --machine "$(hostname)"
+            --session $__osh_session_id
+        )
+        __osh append-event $__osh_current_command &!
+        unset __osh_current_command
+    fi
+}
+add-zsh-hook precmd __osh_after
+
+function __osh_search {
+    if [[ -v __osh_session_id ]]; then
+        __osh_session_id=$(uuidgen)
+    fi
+    BUFFER=$(__osh ui --folder=$(pwd) --query=$BUFFER --session-id=$__osh_session_id)
+    CURSOR=$#BUFFER
+    zle reset-prompt
+}
+zle -N __osh_search
+bindkey '^r' __osh_search
+bindkey -M vicmd '^r' __osh_search
+bindkey -M viins '^r' __osh_search
 ```

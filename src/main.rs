@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use osh_oxy::commands;
+use osh_oxy::{commands, ui::EventFilter};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -29,18 +29,18 @@ enum Command {
     },
     Cat {
         #[arg(long)]
-        session_id: Option<String>,
-        #[arg(long)]
         unique: bool,
     },
     Convert {},
-    Sk {
+    Search {
         #[arg(long, default_value = "")]
         query: String,
         #[arg(long)]
+        folder: String,
+        #[arg(long)]
         session_id: Option<String>,
         #[arg(long)]
-        unique: bool,
+        filter: Option<EventFilter>,
     },
 }
 
@@ -49,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     match args.command {
-        Command::Cat { session_id, unique } => commands::cat::invoke(session_id, unique).await?,
+        Command::Cat { unique } => commands::cat::invoke(unique).await?,
         Command::AppendEvent {
             starttime,
             command,
@@ -65,11 +65,12 @@ async fn main() -> anyhow::Result<()> {
             .await?
         }
         Command::Convert {} => commands::convert::invoke().await?,
-        Command::Sk {
+        Command::Search {
             query,
+            folder,
             session_id,
-            unique,
-        } => commands::sk::invoke(&query, session_id, unique).await?,
+            filter,
+        } => commands::search::invoke(&query, &folder, session_id, filter).await?,
     }
 
     Ok(())

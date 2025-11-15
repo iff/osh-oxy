@@ -8,7 +8,7 @@ use tokio::{
 };
 
 use crate::{
-    event::{Event, EventFilter, Events},
+    event::{Event, Events},
     formats::EventWriter,
 };
 
@@ -98,19 +98,11 @@ impl<R: AsyncRead + AsyncSeek> AsyncBinaryReader<R> {
 }
 
 #[allow(dead_code)]
-pub async fn load_osh_events(
-    osh_file: impl AsRef<Path>,
-    filter: &EventFilter,
-) -> std::io::Result<Events> {
+pub async fn load_osh_events(osh_file: impl AsRef<Path>) -> std::io::Result<Events> {
     let fp = BufReader::new(File::open(osh_file).await?);
     let mut reader = AsyncBinaryReader::new(fp);
 
-    Ok(reader
-        .read_all()
-        .await?
-        .into_iter()
-        .filter_map(|event| filter.apply(event))
-        .collect::<Events>())
+    Ok(reader.read_all().await?.into_iter().collect::<Events>())
 }
 
 #[cfg(test)]
