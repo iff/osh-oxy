@@ -275,6 +275,11 @@ impl App {
     }
 
     fn run_matcher(&mut self) {
+        if self.input.is_empty() {
+            self.indexer = FuzzyIndex::empty();
+            return;
+        }
+
         let matcher = fuzzer::FuzzyEngine::new(self.input.clone());
 
         let scores: Vec<i64> = self
@@ -321,6 +326,7 @@ impl App {
         scored_indices.sort_by_key(|(_, score)| std::cmp::Reverse(*score));
         let indices = scored_indices.into_iter().map(|(idx, _)| idx).collect();
         self.indexer = FuzzyIndex::new(indices);
+        // TODO overwrite (or max)?
         self.selected_index = 0;
     }
 
@@ -374,11 +380,7 @@ impl App {
             self.move_cursor_left();
         }
 
-        if self.input.is_empty() {
-            self.indexer = FuzzyIndex::empty();
-        } else {
-            self.run_matcher();
-        }
+        self.run_matcher();
     }
 
     fn move_selection_up(&mut self, available_height: usize) {
