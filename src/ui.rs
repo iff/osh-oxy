@@ -438,7 +438,8 @@ impl App {
                                 }
                                 return Ok(None);
                             }
-                            (KeyCode::Char(to_insert), KeyModifiers::NONE) => {
+                            (KeyCode::Char(to_insert), KeyModifiers::NONE)
+                            | (KeyCode::Char(to_insert), KeyModifiers::SHIFT) => {
                                 self.enter_char(to_insert)
                             }
                             (KeyCode::Tab, _) => {
