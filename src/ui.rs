@@ -183,34 +183,39 @@ struct FuzzyIndex {
 }
 
 impl FuzzyIndex {
-    pub fn empty() -> Self {
+    /// creates an identity mapping
+    pub fn identity() -> Self {
         Self { indices: None }
     }
 
+    /// crates an index from a matcher result
     pub fn new(indices: Vec<usize>) -> Self {
         Self {
             indices: Some(indices),
         }
     }
 
+    /// number of matches or None (if all)
     pub fn len(&self) -> Option<usize> {
         self.indices.as_ref().map(|ind| ind.len())
     }
 
-    pub fn indices(&self, num: usize) -> Either<Copied<Iter<'_, usize>>, Range<usize>> {
+    /// gets the first n indices
+    pub fn first_n(&self, n: usize) -> Either<Copied<Iter<'_, usize>>, Range<usize>> {
         if let Some(indices) = &self.indices {
-            let visible_count = num.min(indices.len());
+            let visible_count = n.min(indices.len());
             Either::Left(indices[0..visible_count].iter().copied())
         } else {
-            Either::Right(0..num)
+            Either::Right(0..n)
         }
     }
 
-    pub fn index(&self, idx: usize) -> Option<usize> {
+    /// get the i-th index
+    pub fn get(&self, index: usize) -> Option<usize> {
         if let Some(indices) = &self.indices {
-            indices.get(idx).copied()
+            indices.get(index).copied()
         } else {
-            Some(idx)
+            Some(index)
         }
     }
 
@@ -258,7 +263,7 @@ impl App {
         Self {
             input: query,
             history: Vec::new(),
-            indexer: FuzzyIndex::empty(),
+            indexer: FuzzyIndex::identity(),
             character_index,
             reader,
             events: Vec::new(),
@@ -276,7 +281,7 @@ impl App {
 
     fn run_matcher(&mut self) {
         if self.input.is_empty() {
-            self.indexer = FuzzyIndex::empty();
+            self.indexer = FuzzyIndex::identity();
             return;
         }
 
@@ -421,7 +426,7 @@ impl App {
                         KeyCode::Enter => {
                             let idx = self
                                 .indexer
-                                .index(self.selected_index)
+                                .get(self.selected_index)
                                 .ok_or(anyhow!("index {:?} not in indexer", self.selected_index))?;
                             if let Some(event) = self.events.get(idx) {
                                 let event = Arc::unwrap_or_clone(event.clone());
@@ -509,7 +514,7 @@ impl App {
 
         let history: Vec<ListItem> = self
             .indexer
-            .indices(available_height)
+            .first_n(available_height)
             .enumerate()
             .rev()
             .map(|(i, m)| {
