@@ -16,7 +16,7 @@ use chrono::Utc;
 use crossbeam_channel::Receiver;
 use crossterm::{
     ExecutableCommand,
-    event::{self, KeyCode},
+    event::{self, KeyCode, KeyModifiers},
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use itertools::Either;
@@ -422,8 +422,8 @@ impl App {
         loop {
             if event::poll(Duration::from_millis(100))? {
                 if let Some(key) = event::read()?.as_key_press_event() {
-                    match key.code {
-                        KeyCode::Enter => {
+                    match (key.code, key.modifiers) {
+                        (KeyCode::Enter, _) => {
                             let idx = self
                                 .indexer
                                 .get(self.selected_index)
@@ -434,8 +434,10 @@ impl App {
                             }
                             return Ok(None);
                         }
-                        KeyCode::Char(to_insert) => self.enter_char(to_insert),
-                        KeyCode::Tab => {
+                        (KeyCode::Char(to_insert), KeyModifiers::NONE) => {
+                            self.enter_char(to_insert)
+                        }
+                        (KeyCode::Tab, _) => {
                             self.filter = match &self.filter {
                                 None => Some(EventFilter::Duplicates),
                                 Some(EventFilter::Duplicates) => Some(EventFilter::SessionId),
@@ -444,16 +446,20 @@ impl App {
                             };
                             self.run_matcher();
                         }
-                        KeyCode::Backspace => self.delete_char(),
-                        KeyCode::Left => self.move_cursor_left(),
-                        KeyCode::Right => self.move_cursor_right(),
-                        KeyCode::Up => {
+                        (KeyCode::Backspace, _) => self.delete_char(),
+                        (KeyCode::Left, _) => self.move_cursor_left(),
+                        (KeyCode::Right, _) => self.move_cursor_right(),
+                        (KeyCode::Up, _) => {
                             let available_height =
                                 terminal.size()?.height.saturating_sub(5) as usize;
                             self.move_selection_up(available_height);
                         }
-                        KeyCode::Down => self.move_selection_down(),
-                        KeyCode::Esc => return Ok(None),
+                        (KeyCode::Down, _) => self.move_selection_down(),
+                        (KeyCode::Esc, _)
+                        | (KeyCode::Char('c'), KeyModifiers::CONTROL)
+                        | (KeyCode::Char('d'), KeyModifiers::CONTROL) => {
+                            return Ok(None);
+                        }
                         _ => {}
                     }
                     terminal.draw(|frame| self.render(frame))?;
