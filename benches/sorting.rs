@@ -37,7 +37,7 @@ fn create_presorted_files(num_files: usize, events_per_file: usize, sorted: bool
 fn benchmark_sort_real_data(c: &mut Criterion) {
     let mut group = c.benchmark_group("sort_by_timestamp");
 
-    let osh_files = osh_files(Kind::JsonLines);
+    let osh_files = osh_files(Kind::JsonLines).expect("osh files should load");
     if osh_files.is_empty() {
         eprintln!("no .osh files found");
         return;
@@ -62,7 +62,7 @@ fn benchmark_sort_real_data(c: &mut Criterion) {
 fn benchmark_kmerge_real_data(c: &mut Criterion) {
     let mut group = c.benchmark_group("kmerge_real");
 
-    let osh_files = osh_files(Kind::JsonLines);
+    let osh_files = osh_files(Kind::JsonLines).expect("osh files should load");
     if osh_files.is_empty() {
         eprintln!("no .osh files found");
         return;

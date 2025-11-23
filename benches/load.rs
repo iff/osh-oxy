@@ -13,7 +13,7 @@ fn benchmark_load_json_lines(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs_f64(16.0));
 
     // TODO need standalone files or generate them on the fly
-    let osh_files = osh_files(Kind::JsonLines);
+    let osh_files = osh_files(Kind::JsonLines).expect("osh files should load");
     if osh_files.is_empty() {
         eprintln!("no .osh files found");
         return;
@@ -36,7 +36,7 @@ fn benchmark_load_rmp(c: &mut Criterion) {
     let mut group = c.benchmark_group("load_osh_files");
     group.measurement_time(Duration::from_secs_f64(16.0));
 
-    let osh_files = osh_files(Kind::Rmp);
+    let osh_files = osh_files(Kind::Rmp).expect("osh files should load");
     if osh_files.is_empty() {
         eprintln!("no .osh files found");
         return;
