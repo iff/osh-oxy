@@ -16,7 +16,7 @@ pub async fn invoke(
     session_id: Option<String>,
     filter: Option<EventFilter>,
 ) -> anyhow::Result<()> {
-    let oshs = osh_files(Kind::JsonLines);
+    let oshs = osh_files(Kind::JsonLines)?;
 
     let all = future::try_join_all(oshs.into_iter().map(json_lines::load_osh_events)).await?;
 

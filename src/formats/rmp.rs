@@ -27,7 +27,7 @@ impl<W: AsyncWrite> AsyncBinaryWriter<W> {
 
 impl<W: AsyncWrite + Unpin + Send> EventWriter for AsyncBinaryWriter<W> {
     async fn write(&mut self, event: Event) -> anyhow::Result<()> {
-        let data = to_vec(&event).expect("encoding value");
+        let data = to_vec(&event)?;
         let mut buf = (data.len() as u64).to_le_bytes().to_vec();
         buf.extend(data);
         self.inner.write_all(&buf).await?;

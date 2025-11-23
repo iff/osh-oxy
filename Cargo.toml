@@ -32,6 +32,11 @@ rayon = "1.11.0"
 criterion = { version = "0.6", features = ["async_tokio"] }
 tempfile = "*"
 
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+indexing_slicing = "warn"
+
 [[bench]]
 name = "load"
 path = "benches/load.rs"

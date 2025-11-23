@@ -204,6 +204,7 @@ impl FuzzyIndex {
     pub fn first_n(&self, n: usize) -> Either<Copied<Iter<'_, usize>>, Range<usize>> {
         if let Some(indices) = &self.indices {
             let visible_count = n.min(indices.len());
+            #[allow(clippy::indexing_slicing)] // slicing: using min ensures the slice is valid
             Either::Left(indices[0..visible_count].iter().copied())
         } else {
             Either::Right(0..n)
@@ -318,7 +319,13 @@ impl App {
                 scores
                     .into_iter()
                     .enumerate()
-                    .filter(|(idx, score)| *score > 0 && seen.insert(&self.events[*idx].command))
+                    .filter(|(idx, score)| {
+                        if let Some(event) = &self.events.get(*idx) {
+                            *score > 0 && seen.insert(&event.command)
+                        } else {
+                            false
+                        }
+                    })
                     .collect::<Vec<(usize, i64)>>()
             }
             _ => scores
@@ -528,17 +535,19 @@ impl App {
 
         let history: Vec<ListItem> = self
             .indexer
-            .first_n(available_height)
+            .first_n(available_height.min(self.history.len()))
             .enumerate()
             .rev()
-            .map(|(i, m)| {
+            .filter_map(|(i, m)| {
+                // TODO should always be Some(...): skip, report, log otherwise?
+                let event = self.history.get(m)?;
                 // TODO use matcher indices to visualise the matches
-                let content = Line::from(Span::raw(self.history[m].clone()));
+                let content = Line::from(Span::raw(event.clone()));
                 let item = ListItem::new(content);
                 if i == self.selected_index {
-                    item.style(Style::default().bg(Color::DarkGray))
+                    Some(item.style(Style::default().bg(Color::DarkGray)))
                 } else {
-                    item
+                    Some(item)
                 }
             })
             .collect();

@@ -9,7 +9,7 @@ use crate::{
 };
 
 pub async fn invoke(unique: bool) -> anyhow::Result<()> {
-    let oshs = osh_files(Kind::JsonLines);
+    let oshs = osh_files(Kind::JsonLines)?;
     let all = future::try_join_all(oshs.into_iter().map(load_osh_events)).await?;
 
     let iterators = all.into_iter().map(|ev| ev.into_iter().rev());
