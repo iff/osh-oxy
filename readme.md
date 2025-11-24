@@ -1,7 +1,7 @@
 # osh-oxy
 
 <p align="center">
-  <img src="assets/osh-oxy.png" alt="osh-oxy" width="200"/>
+  <img src="assets/osh-oxy.png" alt="osh-oxy" width="500"/>
 </p>
 
 **Note:** This is a very simple (and still crude) tool designed primarily for my personal workflows. It's intentionally kept minimal and focused. It provides simple fuzzy history search using our own history format, based on our Python [one-shell-history](https://github.com/dkuettel/one-shell-history).
