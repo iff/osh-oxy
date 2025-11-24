@@ -24,8 +24,8 @@ use ratatui::{
     Frame, Terminal,
     backend::CrosstermBackend,
     layout::{Constraint, Layout, Position},
-    style::{Color, Style, Stylize},
-    text::{Line, Span, Text},
+    style::{Color, Style},
+    text::{Line, Span},
     widgets::{Block, List, ListItem, Paragraph},
 };
 use rayon::prelude::*;
@@ -493,45 +493,14 @@ impl App {
 
     fn render(&self, frame: &mut Frame) {
         let layout = Layout::vertical([
-            Constraint::Length(1),
             Constraint::Min(1),
             Constraint::Length(1),
-            Constraint::Length(3),
+            Constraint::Length(1),
+            Constraint::Length(5),
         ]);
-        let [title_area, history_area, status_area, input_area] = frame.area().layout(&layout);
+        let [history_area, status_area, input_area, preview_area] = frame.area().layout(&layout);
 
-        let (msg, style) = (vec!["osh-oxy".bold()], Style::default());
-        let text = Text::from(Line::from(msg)).patch_style(style);
-        let title = Paragraph::new(text);
-        frame.render_widget(title, title_area);
-
-        let input = Paragraph::new(self.input.as_str())
-            .style(Style::default().fg(Color::Yellow).not_bold())
-            .block(Block::bordered().title(" search "));
-        frame.render_widget(input, input_area);
-        frame.set_cursor_position(Position::new(
-            // Draw the cursor at the current position in the input field.
-            // This position can be controlled via the left and right arrow key
-            input_area.x + self.character_index as u16 + 1,
-            // Move one line down, from the border to the input line
-            input_area.y + 1,
-        ));
-
-        let filtered = self.indexer.len().unwrap_or(self.events.len());
-        let filter = if let Some(f) = &self.filter {
-            format!("filtered {f}")
-        } else {
-            "".to_string()
-        };
-        let status_text = format!("{filtered} / {}", self.history.len());
-        let status_line = Line::from(vec![
-            Span::raw(status_text),
-            Span::raw(" -- "),
-            Span::raw(filter),
-        ]);
-        frame.render_widget(status_line, status_area);
-
-        let available_height = history_area.height.saturating_sub(2) as usize;
+        let available_height = history_area.height.saturating_sub(1) as usize;
 
         let history: Vec<ListItem> = self
             .indexer
@@ -551,9 +520,56 @@ impl App {
                 }
             })
             .collect();
-        let history_widget = List::new(history).block(Block::bordered());
+        let history_widget = List::new(history)
+            .block(Block::default().padding(ratatui::widgets::Padding::horizontal(2)));
         frame.render_widget(history_widget, history_area);
 
-        // TODO preview
+        let filtered = self.indexer.len().unwrap_or(self.events.len());
+        let filter = if let Some(f) = &self.filter {
+            format!("filtered {f}")
+        } else {
+            "no filter".to_string()
+        };
+        let status_text = format!("{filtered}/{}", self.history.len());
+        let status_line = Line::from(vec![
+            Span::raw("  "),
+            Span::raw(status_text),
+            Span::raw(" ["),
+            Span::raw(filter),
+            Span::raw("]"),
+        ]);
+        frame.render_widget(status_line, status_area);
+
+        let input_line = Line::from(vec![
+            Span::raw("> "),
+            Span::styled(
+                self.input.as_str(),
+                Style::default().fg(Color::Yellow).not_bold(),
+            ),
+        ]);
+        let input = Paragraph::new(input_line).block(Block::default());
+        frame.render_widget(input, input_area);
+        frame.set_cursor_position(Position::new(
+            input_area.x + self.character_index as u16 + 2,
+            input_area.y,
+        ));
+
+        let preview_content = if let Some(idx) = self.indexer.get(self.selected_index) {
+            if let Some(event) = self.events.get(idx) {
+                format!("[exit code={}]: {}", event.exit_code, event.command)
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+        let preview = Paragraph::new(preview_content)
+            .block(
+                Block::default()
+                    .borders(ratatui::widgets::Borders::TOP)
+                    .border_style(Style::default().fg(Color::DarkGray)),
+            )
+            .wrap(ratatui::widgets::Wrap { trim: false });
+        frame.render_widget(preview, preview_area);
     }
 }
