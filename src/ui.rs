@@ -48,13 +48,12 @@ mod fuzzer {
             FuzzyEngine { matcher, query }
         }
 
-        pub fn match_line(&self, line: &str) -> i64 {
-            if let Some((score, _indices)) = self.matcher.fuzzy_indices(line, &self.query) {
-                // TODO return indices for nicer vis
-                return score;
+        pub fn match_line(&self, line: &str) -> (i64, Vec<usize>) {
+            if let Some((score, indices)) = self.matcher.fuzzy_indices(line, &self.query) {
+                return (score, indices);
             }
 
-            0
+            (0, vec![])
         }
     }
 }
