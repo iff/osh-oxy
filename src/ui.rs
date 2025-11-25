@@ -180,18 +180,23 @@ impl Tui {
 struct FuzzyIndex {
     // TODO should also own the data?
     indices: Option<Vec<usize>>,
+    highlight_indices: Option<Vec<Vec<usize>>>,
 }
 
 impl FuzzyIndex {
     /// creates an identity mapping
     pub fn identity() -> Self {
-        Self { indices: None }
+        Self {
+            indices: None,
+            highlight_indices: None,
+        }
     }
 
     /// crates an index from a matcher result
-    pub fn new(indices: Vec<usize>) -> Self {
+    pub fn new(indices: Vec<usize>, highlight_indices: Vec<Vec<usize>>) -> Self {
         Self {
             indices: Some(indices),
+            highlight_indices: Some(highlight_indices),
         }
     }
 
@@ -220,6 +225,15 @@ impl FuzzyIndex {
         }
     }
 
+    /// get the highlight indices
+    pub fn highlight_indices(&self, index: usize) -> Option<&Vec<usize>> {
+        if let Some(indices) = &self.highlight_indices {
+            indices.get(index)
+        } else {
+            None
+        }
+    }
+
     // pub fn matcher_score() -> i64 {
     //     todo!()
     // }
@@ -236,7 +250,7 @@ struct App {
     /// Position of cursor in the editor area.
     character_index: usize,
     /// History of recorded messages
-    history: Vec<String>,
+    history: Vec<(String, String)>,
     /// indices into history sorted according to fuzzer score if we have a query
     indexer: FuzzyIndex,
     /// Reader for collecting events from background thread
@@ -287,8 +301,7 @@ impl App {
         }
 
         let matcher = fuzzer::FuzzyEngine::new(self.input.clone());
-
-        let scores: Vec<i64> = self
+        let scores: (Vec<i64>, Vec<Vec<usize>>) = self
             .events
             .par_iter()
             .map(|event| {
@@ -306,7 +319,7 @@ impl App {
                 if passes_filter {
                     matcher.match_line(&event.command)
                 } else {
-                    0
+                    (0, vec![])
                 }
             })
             .collect();
@@ -317,6 +330,7 @@ impl App {
                 use std::collections::HashSet;
                 let mut seen = HashSet::new();
                 scores
+                    .0
                     .into_iter()
                     .enumerate()
                     .filter(|(idx, score)| {
@@ -329,6 +343,7 @@ impl App {
                     .collect::<Vec<(usize, i64)>>()
             }
             _ => scores
+                .0
                 .into_par_iter()
                 .enumerate()
                 .filter(|(_, score)| *score > 0)
@@ -337,7 +352,7 @@ impl App {
 
         scored_indices.sort_by_key(|(_, score)| std::cmp::Reverse(*score));
         let indices = scored_indices.into_iter().map(|(idx, _)| idx).collect();
-        self.indexer = FuzzyIndex::new(indices);
+        self.indexer = FuzzyIndex::new(indices, scores.1);
         // TODO overwrite (or max)?
         self.selected_index = 0;
     }
@@ -413,8 +428,10 @@ impl App {
         let f = timeago::Formatter::new();
         for event in &self.events {
             let ago = f.convert_chrono(event.endtime(), Utc::now());
-            let pretty = format!("{ago} --- {}", event.command);
-            self.history.push(pretty);
+            // let pretty = format!("{ago} --- {}", event.command);
+            // self.history.push(pretty);
+            // TODO clone
+            self.history.push((ago, event.command.clone()));
         }
     }
 
@@ -509,10 +526,40 @@ impl App {
             .rev()
             .filter_map(|(i, m)| {
                 // TODO should always be Some(...): skip, report, log otherwise?
-                let event = self.history.get(m)?;
-                // TODO use matcher indices to visualise the matches
-                let content = Line::from(Span::raw(event.clone()));
-                let item = ListItem::new(content);
+                let (ago, command) = self.history.get(m)?;
+                let mut spans = Vec::new();
+                spans.push(Span::raw(format!("{ago} -- ")));
+                if let Some(hl_indides) = self.indexer.highlight_indices(m) {
+                    let mut last_index = 0;
+
+                    for &char_index in hl_indides {
+                        if char_index > last_index {
+                            let text: String = command
+                                .chars()
+                                .skip(last_index)
+                                .take(char_index - last_index)
+                                .collect();
+                            spans.push(Span::raw(text));
+                        }
+
+                        if let Some(char_to_highlight) = command.chars().nth(char_index) {
+                            spans.push(Span::styled(
+                                char_to_highlight.to_string(),
+                                Style::default().bg(Color::Yellow).fg(Color::Black),
+                            ));
+                            last_index = char_index + 1;
+                        }
+                    }
+
+                    if last_index < command.len() {
+                        let text: String = command.chars().skip(last_index).collect();
+                        spans.push(Span::raw(text));
+                    }
+                } else {
+                    spans.push(Span::raw(command.clone()));
+                }
+
+                let item = ListItem::new(Line::from(spans));
                 if i == self.selected_index {
                     Some(item.style(Style::default().bg(Color::DarkGray)))
                 } else {
