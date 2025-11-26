@@ -544,7 +544,7 @@ impl App {
                         if let Some(char_to_highlight) = command.chars().nth(char_index) {
                             spans.push(Span::styled(
                                 char_to_highlight.to_string(),
-                                Style::default().bg(Color::Yellow).fg(Color::Black),
+                                Style::default().fg(Color::Yellow),
                             ));
                             last_index = char_index + 1;
                         }
