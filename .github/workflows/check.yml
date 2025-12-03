@@ -1,5 +1,8 @@
 name: check
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: ["main"]
@@ -18,7 +21,9 @@ jobs:
     runs-on: ubuntu-latest
     name: nightly / fmt
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
       - name: install stable
         uses: dtolnay/rust-toolchain@nightly
         with:
@@ -33,29 +38,27 @@ jobs:
       contents: read
       checks: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
       - name: install stable
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
       - name: cargo clippy
-        uses: giraffate/clippy-action@v1
+        uses: giraffate/clippy-action@13b9d32482f25d29ead141b79e7e04e7900281e0 # v1.0.1
         with:
           reporter: "github-pr-check"
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      # - name: cargo clippy
-      #   uses: actions-rs/clippy-check@v1
-      #   with:
-      #     token: ${{ secrets.GITHUB_TOKEN }}
 
   test:
     runs-on: ubuntu-latest
     name: stable / test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
       - name: install stable
         uses: dtolnay/rust-toolchain@stable
       - name: cargo test --locked
         run: cargo test --locked --all-features --all-targets
-      # - name: cargo test --doc
-      #   run: cargo test --locked --all-features --doc
