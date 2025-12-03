@@ -12,6 +12,11 @@ pub async fn invoke(
     machine: &str,
     session: &str,
 ) -> anyhow::Result<()> {
+    // mimic zsh/bash behavior and don't add commands that start with a whitespace
+    if command.starts_with(" ") {
+        return Ok(());
+    }
+
     let mut osh_file = home::home_dir().context("home dir has to exist")?;
     osh_file.push(".osh/");
     std::fs::create_dir_all(&osh_file)?;
