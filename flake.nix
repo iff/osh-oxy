@@ -83,6 +83,8 @@
               cargo-edit
               cargo-watch
               rust-analyzer
+              zizmor
+              pinact
             ]
             ++ bins;
 
