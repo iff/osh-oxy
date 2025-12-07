@@ -425,10 +425,10 @@ impl App {
     fn update_display(&mut self) {
         self.history.clear();
         let f = timeago::Formatter::new();
+        let now = Utc::now().timestamp_millis();
         for event in &self.events {
-            let ago = f.convert_chrono(event.endtime(), Utc::now());
-            // let pretty = format!("{ago} --- {}", event.command);
-            // self.history.push(pretty);
+            let d = std::time::Duration::from_millis((now - event.endtimestamp()) as u64);
+            let ago = f.convert(d);
             // TODO clone
             self.history.push((ago, event.command.clone()));
         }

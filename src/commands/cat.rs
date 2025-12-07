@@ -22,9 +22,11 @@ pub async fn invoke(unique: bool) -> anyhow::Result<()> {
         Either::Right(kmerge_by(iterators, |a: &Event, b: &Event| a > b))
     };
 
+    let f = timeago::Formatter::new();
+    let now = Utc::now().timestamp_millis();
     for item in items {
-        let f = timeago::Formatter::new();
-        let ago = f.convert_chrono(item.endtime(), Utc::now());
+        let d = std::time::Duration::from_millis((now - item.endtimestamp()) as u64);
+        let ago = f.convert(d);
         println!("{ago} --- {}", item.command);
     }
 

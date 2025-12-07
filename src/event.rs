@@ -24,7 +24,7 @@ pub struct Event {
 
 impl PartialOrd for Event {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.endtime().cmp(&other.endtime()))
+        Some(self.endtimestamp().cmp(&other.endtimestamp()))
     }
 }
 
@@ -32,8 +32,9 @@ impl Event {
     pub async fn write(self, writer: &mut impl EventWriter) -> anyhow::Result<()> {
         writer.write(self).await
     }
-    pub fn endtime(&self) -> DateTime<Local> {
-        self.timestamp + chrono::Duration::milliseconds((self.duration * 1000.0) as i64)
+
+    pub fn endtimestamp(&self) -> i64 {
+        self.timestamp.timestamp_millis() + ((self.duration * 1000.0) as i64)
     }
 }
 
