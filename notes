@@ -7,12 +7,18 @@ r reimplement basics we need (tui with ratatui and fuzzy-matcher as lib) to enab
   - highlight matches via indices returned from fuzzy indices
   - not sure about event loop and interaction with matcher/reader
   - cancel running matchers if we type
-- look at binary formats or use my own
-    - https://capnproto.org/
-    - https://github.com/capnproto/capnproto-rust?tab=readme-ov-file
-    x https://docs.rs/rmp-serde/latest/rmp_serde/
+- speedups (currently not an issue with my history volume)
+  - using binary format gets us the most
+  - only mild speedups for:
+      - seems like chrono datetime parsing takes up a chunk of time (especially for rmp)
+      - mmap files?
+        - but with threads/rayon and remove async (block on page fault?)
+      - rmp allows zero-copy for strings: maybe move to Event<'a> with &'a str?
+        - capnproto better?
+        - https://github.com/capnproto/capnproto-rust?tab=readme-ov-file
 - understand Rust pdqsort in detail and write better benchs
     - also look into glidesort: https://github.com/orlp/glidesort
+x binary format with https://docs.rs/rmp-serde/latest/rmp_serde/
 c bind execute command vs. insert
 x splitting lib up in different formats (when adding more)
 x at the moment sorting is not correct for long running commands (we append to osh files after process completes)
