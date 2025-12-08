@@ -1,7 +1,8 @@
+use std::io::Write;
+
 use chrono::Utc;
 use futures::future;
 use itertools::{Either, Itertools, kmerge_by};
-use std::io::Write;
 
 use crate::{
     event::Event,
