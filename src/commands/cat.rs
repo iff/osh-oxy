@@ -1,6 +1,7 @@
 use chrono::Utc;
 use futures::future;
 use itertools::{Either, Itertools, kmerge_by};
+use std::io::Write;
 
 use crate::{
     event::Event,
@@ -24,10 +25,12 @@ pub async fn invoke(unique: bool) -> anyhow::Result<()> {
 
     let f = timeago::Formatter::new();
     let now = Utc::now().timestamp_millis();
+    let stdout = std::io::stdout();
+    let mut handle = stdout.lock();
     for item in items {
         let d = std::time::Duration::from_millis((now - item.endtimestamp()) as u64);
         let ago = f.convert(d);
-        println!("{ago} --- {}", item.command);
+        writeln!(handle, "{ago} --- {}", item.command)?;
     }
 
     Ok(())
