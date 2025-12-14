@@ -76,7 +76,8 @@
         devShells.default = pkgs.mkShell {
           packages =
             with pkgs;
-            [
+            bins
+            ++ [
               rustToolchain
               pkg-config
               cargo-deny
@@ -85,8 +86,7 @@
               rust-analyzer
               zizmor
               pinact
-            ]
-            ++ bins;
+            ];
 
           shellHook = ''
             echo "Rust stable: $(${pkgs.rustToolchain}/bin/rustc --version)"
