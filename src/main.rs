@@ -13,7 +13,7 @@ struct Args {
 enum Command {
     AppendEvent {
         #[arg(long)]
-        starttime: f64,
+        starttime: i64,
         #[arg(long)]
         command: String,
         #[arg(long)]
@@ -27,10 +27,7 @@ enum Command {
         #[arg(long)]
         session: String,
     },
-    Cat {
-        #[arg(long)]
-        unique: bool,
-    },
+    Cat {},
     Convert {},
     Search {
         #[arg(long, default_value = "")]
@@ -44,12 +41,11 @@ enum Command {
     },
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     match args.command {
-        Command::Cat { unique } => commands::cat::invoke(unique).await?,
+        Command::Cat {} => commands::cat::invoke()?,
         Command::AppendEvent {
             starttime,
             command,
@@ -58,19 +54,16 @@ async fn main() -> anyhow::Result<()> {
             exit_code,
             machine,
             session,
-        } => {
-            commands::append_event::invoke(
-                starttime, &command, &folder, endtime, exit_code, &machine, &session,
-            )
-            .await?
-        }
-        Command::Convert {} => commands::convert::invoke().await?,
+        } => commands::append_event::invoke(
+            starttime, &command, &folder, endtime, exit_code, &machine, &session,
+        )?,
+        Command::Convert {} => commands::convert::invoke()?,
         Command::Search {
             query,
             folder,
             session_id,
             filter,
-        } => commands::search::invoke(&query, &folder, session_id, filter).await?,
+        } => commands::search::invoke(&query, &folder, session_id, filter)?,
     }
 
     Ok(())
