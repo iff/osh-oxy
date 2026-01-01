@@ -3,7 +3,9 @@ use std::{io::Write, path::PathBuf};
 use arbitrary::Arbitrary;
 use serde::{Deserialize, Serialize};
 
-use crate::formats::{json_lines::JsonLineEvent, rmp::BinaryWriter};
+#[allow(deprecated)]
+use crate::formats::json_lines::JsonLineEvent;
+use crate::formats::rmp::BinaryWriter;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
@@ -34,6 +36,7 @@ impl Arbitrary<'_> for Event {
     }
 }
 
+#[allow(deprecated)]
 impl From<JsonLineEvent> for Event {
     fn from(event: JsonLineEvent) -> Self {
         let timestamp = event.timestamp.timestamp_millis();

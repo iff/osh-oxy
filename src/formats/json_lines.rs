@@ -1,11 +1,13 @@
+#![allow(deprecated)]
+
 use std::{option::Option, path::PathBuf};
 
 use arbitrary::{Arbitrary, Result, Unstructured};
 use chrono::{DateTime, Local, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 
-/// legacy read-only format
 /// the metadata we store for each history entry
+#[deprecated(since = "0.2.0", note = "use binary format")]
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub struct JsonLineEvent {
@@ -19,23 +21,6 @@ pub struct JsonLineEvent {
     pub machine: String,
     pub session: String,
 }
-
-// impl From<Event<'_>> for JsonLineEvent {
-//     fn from(event: Event) -> Self {
-//         let timestamp = DateTime::from_timestamp_millis(event.timestamp_millis)
-//             .unwrap()
-//             .with_timezone(&Local);
-//         Self {
-//             timestamp,
-//             command: event.command.to_string(),
-//             duration: event.duration,
-//             exit_code: event.exit_code,
-//             folder: event.folder.to_string(),
-//             machine: event.machine.to_string(),
-//             session: event.session.to_string(),
-//         }
-//     }
-// }
 
 impl PartialOrd for JsonLineEvent {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
