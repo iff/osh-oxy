@@ -1,9 +1,6 @@
 #![allow(deprecated)]
 
-use std::{option::Option, path::PathBuf};
-
-use arbitrary::{Arbitrary, Result, Unstructured};
-use chrono::{DateTime, Local, TimeZone, Utc};
+use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 
 /// the metadata we store for each history entry
@@ -31,24 +28,6 @@ impl PartialOrd for JsonLineEvent {
 impl JsonLineEvent {
     pub fn endtimestamp(&self) -> i64 {
         self.timestamp.timestamp_millis() + ((self.duration * 1000.0) as i64)
-    }
-}
-
-impl<'a> Arbitrary<'a> for JsonLineEvent {
-    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        let i: i64 = u.arbitrary()?;
-        let folder: PathBuf = u.arbitrary()?;
-        let machine_id: String = u.arbitrary()?;
-        let session_id: String = u.arbitrary()?;
-        Ok(Self {
-            timestamp: Utc.timestamp_nanos(i * 1_000_000_000).into(),
-            command: u.arbitrary()?,
-            duration: u.arbitrary()?,
-            exit_code: u.arbitrary()?,
-            folder: folder.to_string_lossy().to_string(),
-            machine: format!("machine_{machine_id}"),
-            session: format!("session_{session_id}"),
-        })
     }
 }
 
