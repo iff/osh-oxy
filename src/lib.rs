@@ -61,12 +61,15 @@ pub fn osh_files(kind: formats::Kind) -> anyhow::Result<HashSet<PathBuf>> {
 
 pub fn load_sorted() -> anyhow::Result<Vec<Event>> {
     let oshs = osh_files(Kind::Rmp)?;
-    let osh_files: Vec<File> = oshs.iter().map(|o| File::open(o).unwrap()).collect();
+    let osh_files: Vec<File> = oshs
+        .into_iter()
+        .map(File::open)
+        .collect::<Result<Vec<_>, _>>()?;
     let oshs_data: Vec<&[u8]> = osh_files.iter().map(mmap).collect();
     let all: Vec<Vec<Event>> = oshs_data
         .par_iter()
-        .map(|data| rmp::load_osh_events(data).unwrap())
-        .collect();
+        .map(|data| rmp::load_osh_events(data))
+        .collect::<Result<Vec<_>, _>>()?;
 
     let mut all_items: Vec<Event> = all.into_iter().flatten().collect();
     all_items.par_sort_unstable_by(|a, b| b.cmp(a));
