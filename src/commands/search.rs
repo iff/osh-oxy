@@ -13,6 +13,7 @@ pub fn invoke(
 ) -> anyhow::Result<()> {
     let (tx_item, receiver) = crossbeam_channel::unbounded();
     thread::spawn(|| {
+        // TODO not sure if we want to sort already?
         #[allow(clippy::expect_used)]
         let _ = load_sorted()
             .expect("osh files loading")
