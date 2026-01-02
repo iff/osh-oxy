@@ -86,9 +86,8 @@
               rust-analyzer
               zizmor
               pinact
-              glibc.debug
             ]
-            ++ bins;
+            ++ lib.optionals pkgs.stdenv.isLinux [ glibc.debug ];
 
           shellHook = ''
             echo "Rust stable: $(${pkgs.rustToolchain}/bin/rustc --version)"
