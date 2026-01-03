@@ -48,7 +48,7 @@ impl Default for JsonLinesHeader {
     }
 }
 
-/// json lines format starts with [`JsonLinesHeader`] and then one [`Event`] per line.
+/// json lines format starts with [`JsonLinesHeader`] and then one [`JsonLineEvent`] per line.
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum Entry {
