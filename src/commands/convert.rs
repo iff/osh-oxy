@@ -1,25 +1,29 @@
+use std::fs::File;
+
 use anyhow::Context;
-use tokio::fs::File;
 
 use crate::{
-    formats::{EventWriter, Kind, json_lines, rmp::AsyncBinaryWriter},
-    osh_files,
+    event::Event,
+    formats::{Kind, json_lines, rmp::BinaryWriter},
+    mmap, osh_files,
 };
 
-pub async fn invoke() -> anyhow::Result<()> {
+/// convert from json lins to rmp
+pub fn invoke() -> anyhow::Result<()> {
     for path in osh_files(Kind::JsonLines)? {
-        let events = json_lines::load_osh_events(path.clone())
-            .await
+        let file = File::open(&path)?;
+        let data = mmap(&file);
+        let events = json_lines::load_osh_events(data)
             .context("Failed to load events from JSON lines file")?;
 
         let output_path = path.with_extension("bosh");
 
-        let file = File::create(&output_path)
-            .await
-            .context("Failed to create output file")?;
-        let mut writer = AsyncBinaryWriter::new(file);
+        let file = std::fs::File::create(&output_path).context("Failed to create output file")?;
+        let mut writer = BinaryWriter::new(file);
         for event in events {
-            writer.write(event).await.context("Failed to write event")?;
+            Event::from(event)
+                .write(&mut writer)
+                .context("Failed to write event")?;
         }
     }
 
