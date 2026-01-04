@@ -86,6 +86,7 @@
               rust-analyzer
               zizmor
               pinact
+              hyperfine
             ]
             ++ lib.optionals pkgs.stdenv.isLinux [ glibc.debug ];
 
