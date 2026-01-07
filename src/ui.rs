@@ -24,7 +24,7 @@ use itertools::Either;
 use ratatui::{
     Frame, Terminal,
     backend::CrosstermBackend,
-    layout::{Constraint, Layout, Position},
+    layout::{Constraint, Direction, Layout, Position},
     style::{Color, Style},
     text::{Line, Span},
     widgets::{Block, List, ListItem, Paragraph},
@@ -462,6 +462,20 @@ impl App {
         }
     }
 
+    fn active_filters(&self) -> String {
+        // TODO find a nicer way to visualise the active filters
+        self.filters
+            .iter()
+            .map(|filter| match filter {
+                EventFilter::Duplicates => "U".to_string(),
+                EventFilter::SessionId => "S".to_string(),
+                EventFilter::Folder => "F".to_string(),
+                EventFilter::ExitCodeSuccess => "E".to_string(),
+            })
+            .collect::<Vec<_>>()
+            .join(" | ")
+    }
+
     fn run(
         mut self,
         terminal: &mut Terminal<CrosstermBackend<File>>,
@@ -616,17 +630,17 @@ impl App {
         frame.render_widget(history_widget, history_area);
 
         let filtered = self.indexer.len().unwrap_or(self.events.len());
-        // TODO better visualisation
-        let filters: String = self.filters.iter().map(|f| format!("{f} ")).collect();
         let status_text = format!("{filtered}/{}", self.history.len());
-        let status_line = Line::from(vec![
-            Span::raw("  "),
-            Span::raw(status_text),
-            Span::raw(" filters: ["),
-            Span::raw(filters),
-            Span::raw("]"),
-        ]);
-        frame.render_widget(status_line, status_area);
+        let status_line = Line::from(vec![Span::raw("  "), Span::raw(status_text)]);
+        let filters = format!("[{}]  ", self.active_filters());
+        let status_line_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Min(0), Constraint::Length(filters.len() as u16)])
+            .split(status_area);
+        #[allow(clippy::indexing_slicing)] // constructed two constraints
+        frame.render_widget(status_line, status_line_chunks[0]);
+        #[allow(clippy::indexing_slicing)] // constructed two constraints
+        frame.render_widget(filters, status_line_chunks[1]);
 
         let input_line = Line::from(vec![
             Span::raw("> "),
