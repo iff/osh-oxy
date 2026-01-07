@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     fmt::Display,
     fs::File,
     io::Write,
@@ -91,7 +92,7 @@ impl EventReader {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum EventFilter {
     Duplicates,
     SessionId,
@@ -128,6 +129,7 @@ impl FromStr for EventFilter {
             "duplicates" => Ok(EventFilter::Duplicates),
             "session_id" => Ok(EventFilter::SessionId),
             "folder" => Ok(EventFilter::Folder),
+            "exit_code_success" => Ok(EventFilter::ExitCodeSuccess),
             _ => Err(ParseEventFilterError(filter.to_string())),
         }
     }
@@ -141,7 +143,7 @@ impl Tui {
         query: &str,
         folder: &str,
         session_id: Option<String>,
-        filter: Option<EventFilter>,
+        filters: HashSet<EventFilter>,
         show_score: bool,
     ) -> Option<Event> {
         let reader = EventReader::new().start(receiver);
@@ -152,7 +154,7 @@ impl Tui {
                     query.to_string(),
                     folder.to_string(),
                     session_id,
-                    filter,
+                    filters,
                     show_score,
                 )
                 .run(&mut terminal);
@@ -272,7 +274,7 @@ struct App {
     /// Currently selected index in the history widget (0 = bottom-most)
     selected_index: usize,
     /// currently active event filter
-    filter: Option<EventFilter>,
+    filters: HashSet<EventFilter>,
     folder: String,
     /// Current session id
     session_id: Option<String>,
@@ -285,7 +287,7 @@ impl App {
         query: String,
         folder: String,
         session_id: Option<String>,
-        filter: Option<EventFilter>,
+        filters: HashSet<EventFilter>,
         show_score: bool,
     ) -> Self {
         let character_index = query.len();
@@ -297,7 +299,7 @@ impl App {
             reader,
             events: Vec::new(),
             selected_index: 0,
-            filter,
+            filters,
             folder,
             session_id,
             show_score,
@@ -322,19 +324,24 @@ impl App {
             .events
             .par_iter()
             .map(|event| {
-                let passes_filter = match &self.filter {
-                    None => true,
-                    // handle later or maybe keeping those in memory as well
-                    Some(EventFilter::Duplicates) => true,
-                    Some(EventFilter::SessionId) => self
-                        .session_id
-                        .as_ref()
-                        .is_none_or(|sid| event.session == *sid),
-                    Some(EventFilter::Folder) => event.folder == self.folder,
-                    Some(EventFilter::ExitCodeSuccess) => event.exit_code == 0,
-                };
+                let passes_filters = self
+                    .filters
+                    .iter()
+                    .map(|filter| {
+                        match filter {
+                            // handle later or maybe keeping those in memory as well
+                            EventFilter::Duplicates => true,
+                            EventFilter::SessionId => self
+                                .session_id
+                                .as_ref()
+                                .is_none_or(|sid| event.session == *sid),
+                            EventFilter::Folder => event.folder == self.folder,
+                            EventFilter::ExitCodeSuccess => event.exit_code == 0,
+                        }
+                    })
+                    .all(|x| x);
 
-                if passes_filter {
+                if passes_filters {
                     matcher.match_line(&event.command)
                 } else {
                     (0, vec![])
@@ -342,30 +349,28 @@ impl App {
             })
             .collect();
 
-        let mut scored_indices = match &self.filter {
-            Some(EventFilter::Duplicates) => {
-                // TODO not so sure, maybe find a better approach here
-                use std::collections::HashSet;
-                let mut seen = HashSet::new();
-                scores
-                    .0
-                    .into_iter()
-                    .enumerate()
-                    .filter(|(idx, score)| {
-                        if let Some(event) = &self.events.get(*idx) {
-                            *score > 0 && seen.insert(&event.command)
-                        } else {
-                            false
-                        }
-                    })
-                    .collect::<Vec<(usize, i64)>>()
-            }
-            _ => scores
+        let mut scored_indices = if self.filters.contains(&EventFilter::Duplicates) {
+            // TODO not so sure, maybe find a better approach here
+            let mut seen = HashSet::new();
+            scores
+                .0
+                .into_iter()
+                .enumerate()
+                .filter(|(idx, score)| {
+                    if let Some(event) = &self.events.get(*idx) {
+                        *score > 0 && seen.insert(&event.command)
+                    } else {
+                        false
+                    }
+                })
+                .collect::<Vec<(usize, i64)>>()
+        } else {
+            scores
                 .0
                 .into_par_iter()
                 .enumerate()
                 .filter(|(_, score)| *score > 0)
-                .collect::<Vec<(usize, i64)>>(),
+                .collect::<Vec<(usize, i64)>>()
         };
 
         scored_indices.sort_by_key(|(_, score)| std::cmp::Reverse(*score));
@@ -452,6 +457,14 @@ impl App {
         }
     }
 
+    fn toggle_filter(&mut self, event: EventFilter) {
+        if self.filters.contains(&event) {
+            self.filters.remove(&event);
+        } else {
+            self.filters.insert(event);
+        }
+    }
+
     fn run(
         mut self,
         terminal: &mut Terminal<CrosstermBackend<File>>,
@@ -483,15 +496,24 @@ impl App {
                             | (KeyCode::Char(to_insert), KeyModifiers::SHIFT) => {
                                 self.enter_char(to_insert)
                             }
-                            (KeyCode::Tab, _) => {
-                                // TODO make this more ergnomic
-                                self.filter = match &self.filter {
-                                    None => Some(EventFilter::Duplicates),
-                                    Some(EventFilter::Duplicates) => Some(EventFilter::SessionId),
-                                    Some(EventFilter::SessionId) => Some(EventFilter::Folder),
-                                    Some(EventFilter::Folder) => Some(EventFilter::ExitCodeSuccess),
-                                    Some(EventFilter::ExitCodeSuccess) => None,
-                                };
+                            (KeyCode::Char('t'), KeyModifiers::CONTROL) => {
+                                self.toggle_filter(EventFilter::Duplicates);
+                                self.run_matcher();
+                            }
+                            (KeyCode::Char('s'), KeyModifiers::CONTROL) => {
+                                self.toggle_filter(EventFilter::SessionId);
+                                self.run_matcher();
+                            }
+                            (KeyCode::Char('f'), KeyModifiers::CONTROL) => {
+                                self.toggle_filter(EventFilter::Folder);
+                                self.run_matcher();
+                            }
+                            (KeyCode::Char('e'), KeyModifiers::CONTROL) => {
+                                self.toggle_filter(EventFilter::ExitCodeSuccess);
+                                self.run_matcher();
+                            }
+                            (KeyCode::Char('x'), KeyModifiers::CONTROL) => {
+                                self.show_score = !self.show_score;
                                 self.run_matcher();
                             }
                             (KeyCode::Backspace, _) => self.delete_char(),
@@ -597,17 +619,14 @@ impl App {
         frame.render_widget(history_widget, history_area);
 
         let filtered = self.indexer.len().unwrap_or(self.events.len());
-        let filter = if let Some(f) = &self.filter {
-            format!("filtered {f}")
-        } else {
-            "no filter".to_string()
-        };
+        // TODO better visualisation
+        let filters: String = self.filters.iter().map(|f| format!("{f} ")).collect();
         let status_text = format!("{filtered}/{}", self.history.len());
         let status_line = Line::from(vec![
             Span::raw("  "),
             Span::raw(status_text),
-            Span::raw(" ["),
-            Span::raw(filter),
+            Span::raw(" filters: ["),
+            Span::raw(filters),
             Span::raw("]"),
         ]);
         frame.render_widget(status_line, status_area);
