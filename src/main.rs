@@ -19,7 +19,7 @@ enum Command {
         #[arg(long)]
         folder: String,
         #[arg(long)]
-        endtime: f64,
+        endtime: i64,
         #[arg(long)]
         exit_code: i16,
         #[arg(long)]

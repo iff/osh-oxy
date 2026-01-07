@@ -442,7 +442,7 @@ impl App {
         let f = timeago::Formatter::new();
         let now = Utc::now().timestamp_millis();
         for event in &self.events {
-            let d = std::time::Duration::from_millis((now - event.endtimestamp()) as u64);
+            let d = std::time::Duration::from_millis((now - event.endtime) as u64);
             let ago = f.convert(d);
             // TODO clone
             self.history.push((ago, event.command.clone()));
