@@ -78,7 +78,7 @@ function __osh {
 autoload -U add-zsh-hook
 
 function __osh_ts {
-    printf '%.0f' $((EPOCHREALTIME * 1000))
+    echo $(($(date +%s) * 1000))
 }
 
 function __osh_before {
