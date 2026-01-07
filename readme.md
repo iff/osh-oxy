@@ -62,6 +62,7 @@ osh-oxy search --folder <FOLDER> [--query <QUERY>] [--session_id <SESSION_ID>] [
   - `duplicates`: Hide duplicate commands, showing only unique entries
   - `session_id`: Filter by the provided session ID
   - `folder`: Filter to commands run in the same folder
+- `--show_score`: Show fuzzy matcher score after command
 
 The filter can be cycled through at runtime using the Tab key (none → duplicates → session_id → folder → none).
 

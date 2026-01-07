@@ -38,6 +38,8 @@ enum Command {
         session_id: Option<String>,
         #[arg(long)]
         filter: Option<EventFilter>,
+        #[arg(long)]
+        show_score: bool,
     },
 }
 
@@ -63,7 +65,8 @@ fn main() -> anyhow::Result<()> {
             folder,
             session_id,
             filter,
-        } => commands::search::invoke(&query, &folder, session_id, filter)?,
+            show_score,
+        } => commands::search::invoke(&query, &folder, session_id, filter, show_score)?,
     }
 
     Ok(())

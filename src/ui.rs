@@ -140,6 +140,7 @@ impl Tui {
         folder: &str,
         session_id: Option<String>,
         filter: Option<EventFilter>,
+        show_score: bool,
     ) -> Option<Event> {
         let reader = EventReader::new().start(receiver);
         Tui::setup_terminal()
@@ -150,6 +151,7 @@ impl Tui {
                     folder.to_string(),
                     session_id,
                     filter,
+                    show_score,
                 )
                 .run(&mut terminal);
                 Tui::restore_terminal(&mut terminal)?;
@@ -272,6 +274,7 @@ struct App {
     folder: String,
     /// Current session id
     session_id: Option<String>,
+    show_score: bool,
 }
 
 impl App {
@@ -281,6 +284,7 @@ impl App {
         folder: String,
         session_id: Option<String>,
         filter: Option<EventFilter>,
+        show_score: bool,
     ) -> Self {
         let character_index = query.len();
         Self {
@@ -294,6 +298,7 @@ impl App {
             filter,
             folder,
             session_id,
+            show_score,
         }
     }
 
@@ -568,7 +573,7 @@ impl App {
                     spans.push(Span::raw(command.clone()));
                 }
 
-                if let Some(score) = self.indexer.matcher_score(i) {
+                if self.show_score && let Some(score) = self.indexer.matcher_score(i) {
                     spans.push(Span::raw(format!(" ({})", score)));
                 }
 
