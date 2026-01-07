@@ -29,7 +29,7 @@ tempfile = "*"
 [profile.release]
 lto = "fat"
 panic = "abort"
-debug = true
+# debug = true
 
 [lints.clippy]
 unwrap_used = "warn"

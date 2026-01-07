@@ -62,9 +62,15 @@ osh-oxy search --folder <FOLDER> [--query <QUERY>] [--session_id <SESSION_ID>] [
   - `duplicates`: Hide duplicate commands, showing only unique entries
   - `session_id`: Filter by the provided session ID
   - `folder`: Filter to commands run in the same folder
+  - `exit_code_success`: Hide commands with non-zero exit code
 - `--show_score`: Show fuzzy matcher score after command
 
-The filter can be cycled through at runtime using the Tab key (none → duplicates → session_id → folder → none).
+The filters can be toggled at runtime using the keybindings:
+
+- `ctrl-u`: toggle duplicates
+- `ctrl-s`: toggle session id
+- `ctrl-f`: toggle folder
+- `ctrl-e`: toggle exit code success
 
 ## example zsh integration
 

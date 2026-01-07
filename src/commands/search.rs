@@ -1,4 +1,4 @@
-use std::{sync::Arc, thread};
+use std::{collections::HashSet, sync::Arc, thread};
 
 use crate::{
     load_sorted,
@@ -9,7 +9,7 @@ pub fn invoke(
     query: &str,
     folder: &str,
     session_id: Option<String>,
-    filter: Option<EventFilter>,
+    filters: HashSet<EventFilter>,
     show_score: bool,
 ) -> anyhow::Result<()> {
     let (tx_item, receiver) = crossbeam_channel::unbounded();
@@ -29,7 +29,7 @@ pub fn invoke(
         drop(tx_item);
     });
 
-    if let Some(event) = Tui::start(receiver, query, folder, session_id, filter, show_score) {
+    if let Some(event) = Tui::start(receiver, query, folder, session_id, filters, show_score) {
         println!("{}", event.command);
     }
     Ok(())

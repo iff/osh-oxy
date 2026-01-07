@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use clap::{Parser, Subcommand};
 use osh_oxy::{commands, ui::EventFilter};
 
@@ -37,7 +39,7 @@ enum Command {
         #[arg(long)]
         session_id: Option<String>,
         #[arg(long)]
-        filter: Option<EventFilter>,
+        filter: Vec<EventFilter>,
         #[arg(long)]
         show_score: bool,
     },
@@ -66,7 +68,10 @@ fn main() -> anyhow::Result<()> {
             session_id,
             filter,
             show_score,
-        } => commands::search::invoke(&query, &folder, session_id, filter, show_score)?,
+        } => {
+            let filters = HashSet::from_iter(filter);
+            commands::search::invoke(&query, &folder, session_id, filters, show_score)?
+        }
     }
 
     Ok(())
