@@ -320,6 +320,7 @@ impl App {
         // TODO matcher should go into its own module and accumulate results into a struct before
         // sorting
         let matcher = fuzzer::FuzzyEngine::new(self.input.clone());
+        // TODO filtering should also work with an empty query
         let scores: (Vec<i64>, Vec<Vec<usize>>) = self
             .events
             .par_iter()
