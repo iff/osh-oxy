@@ -3,21 +3,22 @@ r reimplement basics we need (tui with ratatui and fuzzy-matcher as lib) to enab
   - fuzzer in owm module
   - hardcoded offsets (height...)
   - cache filter views?
-  - combine filters?
-  - highlight matches via indices returned from fuzzy indices
+  x combine filters?
+  x highlight matches via indices returned from fuzzy indices
   - not sure about event loop and interaction with matcher/reader
   - cancel running matchers if we type
-- speedups (currently not an issue with my history volume)
-  - using binary format gets us the most
-  - only mild speedups for:
+- enable ^'.. chars in query 
+- understand Rust pdqsort in detail and write better benchs
+    - also look into glidesort: https://github.com/orlp/glidesort
+x speedups (currently not an issue with my history volume)
+  x using binary format gets us the most
+  x only mild speedups for:
       - seems like chrono datetime parsing takes up a chunk of time (especially for rmp)
       - mmap files?
         - but with threads/rayon and remove async (block on page fault?)
       - rmp allows zero-copy for strings: maybe move to Event<'a> with &'a str?
         - capnproto better?
         - https://github.com/capnproto/capnproto-rust?tab=readme-ov-file
-- understand Rust pdqsort in detail and write better benchs
-    - also look into glidesort: https://github.com/orlp/glidesort
 x binary format with https://docs.rs/rmp-serde/latest/rmp_serde/
 c bind execute command vs. insert
 x splitting lib up in different formats (when adding more)
