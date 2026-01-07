@@ -573,7 +573,9 @@ impl App {
                     spans.push(Span::raw(command.clone()));
                 }
 
-                if self.show_score && let Some(score) = self.indexer.matcher_score(i) {
+                if self.show_score
+                    && let Some(score) = self.indexer.matcher_score(i)
+                {
                     spans.push(Span::raw(format!(" ({})", score)));
                 }
 
