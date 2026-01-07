@@ -493,7 +493,7 @@ impl App {
                             | (KeyCode::Char(to_insert), KeyModifiers::SHIFT) => {
                                 self.enter_char(to_insert)
                             }
-                            (KeyCode::Char('t'), KeyModifiers::CONTROL) => {
+                            (KeyCode::Char('u'), KeyModifiers::CONTROL) => {
                                 self.toggle_filter(EventFilter::Duplicates);
                                 self.run_matcher();
                             }

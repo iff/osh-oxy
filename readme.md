@@ -67,7 +67,7 @@ osh-oxy search --folder <FOLDER> [--query <QUERY>] [--session_id <SESSION_ID>] [
 
 The filters can be toggled at runtime using the keybindings:
 
-- `ctrl-t`: toggle duplicates
+- `ctrl-u`: toggle duplicates
 - `ctrl-s`: toggle session id
 - `ctrl-f`: toggle folder
 - `ctrl-e`: toggle exit code success
