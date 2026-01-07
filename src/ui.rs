@@ -96,6 +96,7 @@ pub enum EventFilter {
     Duplicates,
     SessionId,
     Folder,
+    ExitCodeSuccess,
 }
 
 impl Display for EventFilter {
@@ -104,6 +105,7 @@ impl Display for EventFilter {
             EventFilter::Duplicates => write!(f, "duplicates"),
             EventFilter::SessionId => write!(f, "session id"),
             EventFilter::Folder => write!(f, "folder"),
+            EventFilter::ExitCodeSuccess => write!(f, "exit code success"),
         }
     }
 }
@@ -329,6 +331,7 @@ impl App {
                         .as_ref()
                         .is_none_or(|sid| event.session == *sid),
                     Some(EventFilter::Folder) => event.folder == self.folder,
+                    Some(EventFilter::ExitCodeSuccess) => event.exit_code == 0,
                 };
 
                 if passes_filter {
@@ -481,11 +484,13 @@ impl App {
                                 self.enter_char(to_insert)
                             }
                             (KeyCode::Tab, _) => {
+                                // TODO make this more ergnomic
                                 self.filter = match &self.filter {
                                     None => Some(EventFilter::Duplicates),
                                     Some(EventFilter::Duplicates) => Some(EventFilter::SessionId),
                                     Some(EventFilter::SessionId) => Some(EventFilter::Folder),
-                                    Some(EventFilter::Folder) => None,
+                                    Some(EventFilter::Folder) => Some(EventFilter::ExitCodeSuccess),
+                                    Some(EventFilter::ExitCodeSuccess) => None,
                                 };
                                 self.run_matcher();
                             }
