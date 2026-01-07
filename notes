@@ -7,7 +7,10 @@ r reimplement basics we need (tui with ratatui and fuzzy-matcher as lib) to enab
   x highlight matches via indices returned from fuzzy indices
   - not sure about event loop and interaction with matcher/reader
   - cancel running matchers if we type
+- add a mechanism to filer some commands permanently
+  - or add a command that lets the user interactively prune history files?
 - enable ^'.. chars in query 
+- better duplication filtering
 - understand Rust pdqsort in detail and write better benchs
     - also look into glidesort: https://github.com/orlp/glidesort
 x speedups (currently not an issue with my history volume)
