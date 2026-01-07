@@ -6,7 +6,7 @@ pub fn invoke(
     starttime: i64,
     command: &str,
     folder: &str,
-    endtime: f64,
+    endtime: i64,
     exit_code: i16,
     machine: &str,
     session: &str,
@@ -28,7 +28,7 @@ pub fn invoke(
     Event {
         timestamp_millis: starttime,
         command: command.to_string(),
-        duration: (endtime - starttime as f64) as f32,
+        endtime,
         exit_code,
         folder: folder.to_string(),
         machine: machine.to_string(),

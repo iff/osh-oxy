@@ -12,7 +12,7 @@ use crate::formats::rmp::BinaryWriter;
 pub struct Event {
     pub timestamp_millis: i64,
     pub command: String,
-    pub duration: f32,
+    pub endtime: i64,
     pub exit_code: i16,
     pub folder: String,
     pub machine: String,
@@ -27,7 +27,7 @@ impl Arbitrary<'_> for Event {
         Ok(Event {
             timestamp_millis: u.arbitrary()?,
             command: u.arbitrary()?,
-            duration: u.arbitrary()?,
+            endtime: u.arbitrary()?,
             exit_code: u.arbitrary()?,
             folder: folder.to_string_lossy().into(),
             machine: machine_id,
@@ -43,7 +43,7 @@ impl From<JsonLineEvent> for Event {
         Self {
             timestamp_millis: timestamp,
             command: event.command,
-            duration: event.duration,
+            endtime: (timestamp + (event.duration as i64)),
             exit_code: event.exit_code,
             folder: event.folder,
             machine: event.machine,
@@ -62,16 +62,12 @@ impl PartialOrd for Event {
 
 impl Ord for Event {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.endtimestamp().cmp(&other.endtimestamp())
+        self.endtime.cmp(&other.endtime)
     }
 }
 
 impl Event {
     pub fn write<W: Write>(self, writer: &mut BinaryWriter<W>) -> anyhow::Result<()> {
         writer.write(self)
-    }
-
-    pub fn endtimestamp(&self) -> i64 {
-        self.timestamp_millis + ((self.duration * 1000.0) as i64)
     }
 }
