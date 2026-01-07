@@ -8,8 +8,8 @@
 
 Currently it offers two commands to append and search:
 
-- append to osh history file
-- search all \*.osh history files with skim
+- append to bosh history file
+- search all \*.bosh history files with skim
 
 ## installation (nix flake)
 
@@ -36,10 +36,10 @@ I organise my osh files per host:
 ```
 .osh
 ├── active
-│   ├── host.osh
-│   ├── name.osh
-│   └── xyz.osh
-└── local.osh -> active/host.osh
+│   ├── host.bosh
+│   ├── name.bosh
+│   └── xyz.bosh
+└── local.bosh -> active/host.bosh
 ```
 
 ## search command
@@ -62,10 +62,13 @@ osh-oxy search --folder <FOLDER> [--query <QUERY>] [--session_id <SESSION_ID>] [
   - `duplicates`: Hide duplicate commands, showing only unique entries
   - `session_id`: Filter by the provided session ID
   - `folder`: Filter to commands run in the same folder
+- `--show_score`: Show fuzzy matcher score after command
 
 The filter can be cycled through at runtime using the Tab key (none → duplicates → session_id → folder → none).
 
 ## example zsh integration
+
+Note that `--starttime` is a timestamp in milliseconds.
 
 ```
 function __osh {
@@ -73,6 +76,10 @@ function __osh {
 }
 
 autoload -U add-zsh-hook
+
+function __osh_ts {
+    printf '%.0f' $((EPOCHREALTIME * 1000))
+}
 
 function __osh_before {
     local command=''${1[0,-2]}

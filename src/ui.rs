@@ -140,6 +140,7 @@ impl Tui {
         folder: &str,
         session_id: Option<String>,
         filter: Option<EventFilter>,
+        show_score: bool,
     ) -> Option<Event> {
         let reader = EventReader::new().start(receiver);
         Tui::setup_terminal()
@@ -150,6 +151,7 @@ impl Tui {
                     folder.to_string(),
                     session_id,
                     filter,
+                    show_score,
                 )
                 .run(&mut terminal);
                 Tui::restore_terminal(&mut terminal)?;
@@ -176,9 +178,13 @@ impl Tui {
     }
 }
 
+// TODO should also own the data?
 struct FuzzyIndex {
-    // TODO should also own the data?
+    /// indices into [`App.history`]
     indices: Option<Vec<usize>>,
+    /// scores parallel to indices
+    scores: Option<Vec<i64>>,
+    /// highlight matches, globally indexed, parallel to [`App.history`]
     highlight_indices: Option<Vec<Vec<usize>>>,
 }
 
@@ -187,14 +193,17 @@ impl FuzzyIndex {
     pub fn identity() -> Self {
         Self {
             indices: None,
+            scores: None,
             highlight_indices: None,
         }
     }
 
     /// crates an index from a matcher result
-    pub fn new(indices: Vec<usize>, highlight_indices: Vec<Vec<usize>>) -> Self {
+    pub fn new(scored_indices: Vec<(usize, i64)>, highlight_indices: Vec<Vec<usize>>) -> Self {
+        let (indices, scores) = scored_indices.into_iter().unzip();
         Self {
             indices: Some(indices),
+            scores: Some(scores),
             highlight_indices: Some(highlight_indices),
         }
     }
@@ -213,6 +222,8 @@ impl FuzzyIndex {
         } else {
             Either::Right(0..n)
         }
+
+        // TODO this should return (index, history_index, highlight_indices, scores)?
     }
 
     /// get the i-th index
@@ -224,6 +235,14 @@ impl FuzzyIndex {
         }
     }
 
+    pub fn matcher_score(&self, index: usize) -> Option<i64> {
+        if let Some(scores) = &self.scores {
+            scores.get(index).copied()
+        } else {
+            None
+        }
+    }
+
     /// get the highlight indices
     pub fn highlight_indices(&self, index: usize) -> Option<&Vec<usize>> {
         if let Some(indices) = &self.highlight_indices {
@@ -232,14 +251,6 @@ impl FuzzyIndex {
             None
         }
     }
-
-    // pub fn matcher_score() -> i64 {
-    //     todo!()
-    // }
-    //
-    // pub fn matcher_indices() -> Vec<i64> {
-    //     todo!()
-    // }
 }
 
 /// App holds the state of the application
@@ -263,6 +274,7 @@ struct App {
     folder: String,
     /// Current session id
     session_id: Option<String>,
+    show_score: bool,
 }
 
 impl App {
@@ -272,6 +284,7 @@ impl App {
         folder: String,
         session_id: Option<String>,
         filter: Option<EventFilter>,
+        show_score: bool,
     ) -> Self {
         let character_index = query.len();
         Self {
@@ -285,6 +298,7 @@ impl App {
             filter,
             folder,
             session_id,
+            show_score,
         }
     }
 
@@ -299,6 +313,8 @@ impl App {
             return;
         }
 
+        // TODO matcher should go into its own module and accumulate results into a struct before
+        // sorting
         let matcher = fuzzer::FuzzyEngine::new(self.input.clone());
         let scores: (Vec<i64>, Vec<Vec<usize>>) = self
             .events
@@ -350,8 +366,7 @@ impl App {
         };
 
         scored_indices.sort_by_key(|(_, score)| std::cmp::Reverse(*score));
-        let indices = scored_indices.into_iter().map(|(idx, _)| idx).collect();
-        self.indexer = FuzzyIndex::new(indices, scores.1);
+        self.indexer = FuzzyIndex::new(scored_indices, scores.1);
         // TODO overwrite (or max)?
         self.selected_index = 0;
     }
@@ -523,12 +538,12 @@ impl App {
             .first_n(available_height.min(self.history.len()))
             .enumerate()
             .rev()
-            .filter_map(|(i, m)| {
+            .filter_map(|(i, idx)| {
                 // TODO should always be Some(...): skip, report, log otherwise?
-                let (ago, command) = self.history.get(m)?;
+                let (ago, command) = self.history.get(idx)?;
                 let mut spans = Vec::new();
                 spans.push(Span::raw(format!("{ago} -- ")));
-                if let Some(hl_indides) = self.indexer.highlight_indices(m) {
+                if let Some(hl_indides) = self.indexer.highlight_indices(idx) {
                     let mut last_index = 0;
 
                     for &char_index in hl_indides {
@@ -556,6 +571,12 @@ impl App {
                     }
                 } else {
                     spans.push(Span::raw(command.clone()));
+                }
+
+                if self.show_score
+                    && let Some(score) = self.indexer.matcher_score(i)
+                {
+                    spans.push(Span::raw(format!(" ({})", score)));
                 }
 
                 let item = ListItem::new(Line::from(spans));

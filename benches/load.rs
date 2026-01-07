@@ -1,58 +1,35 @@
-use std::{hint::black_box, time::Duration};
+use std::{fs::File, hint::black_box, time::Duration};
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use futures::future;
 use osh_oxy::{
-    formats::{Kind, json_lines, rmp},
-    osh_files,
+    event::Event,
+    formats::{Kind, rmp},
+    mmap, osh_files,
 };
-use tokio::runtime::Runtime;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
-fn benchmark_load_json_lines(c: &mut Criterion) {
-    let mut group = c.benchmark_group("load_osh_files");
-    group.measurement_time(Duration::from_secs_f64(16.0));
-
-    // TODO need standalone files or generate them on the fly
-    let osh_files = osh_files(Kind::JsonLines).expect("osh files should load");
-    if osh_files.is_empty() {
-        eprintln!("no .osh files found");
-        return;
-    }
-
-    group.bench_function("load_all_files", |b| {
-        b.to_async(Runtime::new().unwrap()).iter(|| async {
-            let all_events =
-                future::try_join_all(osh_files.iter().map(json_lines::load_osh_events))
-                    .await
-                    .expect("failed to load all files");
-            black_box(all_events)
-        });
-    });
-
-    group.finish();
-}
-
+#[allow(clippy::expect_used)]
 fn benchmark_load_rmp(c: &mut Criterion) {
     let mut group = c.benchmark_group("load_osh_files");
     group.measurement_time(Duration::from_secs_f64(16.0));
 
-    let osh_files = osh_files(Kind::Rmp).expect("osh files should load");
-    if osh_files.is_empty() {
-        eprintln!("no .osh files found");
-        return;
-    }
+    let oshs = osh_files(Kind::Rmp).expect("osh files should load");
+    let osh_files: Vec<File> = oshs
+        .iter()
+        .map(|o| File::open(o).expect("open file"))
+        .collect();
+    let oshs_data: Vec<&[u8]> = osh_files.iter().map(mmap).collect();
 
-    group.bench_function("load_all_files", |b| {
-        b.to_async(Runtime::new().unwrap()).iter(|| async {
-            let all_events = future::try_join_all(osh_files.iter().map(rmp::load_osh_events))
-                .await
-                .expect("failed to load all files");
-            black_box(all_events)
-        });
+    group.bench_function("load_all_files", |_| {
+        let all_events = oshs_data
+            .par_iter()
+            .map(|d| rmp::load_osh_events(d).expect("load events"))
+            .collect::<Vec<Vec<Event>>>();
+        black_box(all_events);
     });
 
     group.finish();
 }
 
-criterion_group!(benches, benchmark_load_json_lines, benchmark_load_rmp);
+criterion_group!(benches, benchmark_load_rmp);
 criterion_main!(benches);
