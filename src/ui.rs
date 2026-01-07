@@ -324,22 +324,18 @@ impl App {
             .events
             .par_iter()
             .map(|event| {
-                let passes_filters = self
-                    .filters
-                    .iter()
-                    .map(|filter| {
-                        match filter {
-                            // handle later or maybe keeping those in memory as well
-                            EventFilter::Duplicates => true,
-                            EventFilter::SessionId => self
-                                .session_id
-                                .as_ref()
-                                .is_none_or(|sid| event.session == *sid),
-                            EventFilter::Folder => event.folder == self.folder,
-                            EventFilter::ExitCodeSuccess => event.exit_code == 0,
-                        }
-                    })
-                    .all(|x| x);
+                let passes_filters = self.filters.iter().all(|filter| {
+                    match filter {
+                        // handle later or maybe keeping those in memory as well
+                        EventFilter::Duplicates => true,
+                        EventFilter::SessionId => self
+                            .session_id
+                            .as_ref()
+                            .is_none_or(|sid| event.session == *sid),
+                        EventFilter::Folder => event.folder == self.folder,
+                        EventFilter::ExitCodeSuccess => event.exit_code == 0,
+                    }
+                });
 
                 if passes_filters {
                     matcher.match_line(&event.command)
