@@ -4,7 +4,10 @@
   <img src="assets/osh-oxy.png" alt="osh-oxy" width="500"/>
 </p>
 
-**Note:** This is a very simple (and still crude) tool designed primarily for my personal workflows. It's intentionally kept minimal and focused. It provides simple fuzzy history search using our own history format, based on our Python [one-shell-history](https://github.com/dkuettel/one-shell-history).
+**Note:** This is a very simple (and still crude) tool designed primarily for my
+personal workflows. It's intentionally kept minimal and focused. It provides
+simple fuzzy history search using our own history format, based on our Python
+[one-shell-history](https://github.com/dkuettel/one-shell-history).
 
 Currently it offers two commands to append and search:
 
@@ -56,9 +59,13 @@ osh-oxy search --folder <FOLDER> [--query <QUERY>] [--session_id <SESSION_ID>] [
 
 **Optional arguments:**
 
-- `--query <QUERY>`: Initial search query (defaults to empty string if not provided)
-- `--session_id <SESSION_ID>`: Filter results to a specific shell session ID. When provided and the `session_id` filter is active, only commands from this session will be shown
-- `--filter <FILTER>`: Initial filter mode to apply (defaults to none if omitted). Valid values:
+- `--query <QUERY>`: Initial search query (defaults to empty string if not
+  provided)
+- `--session_id <SESSION_ID>`: Filter results to a specific shell session ID.
+  When provided and the `session_id` filter is active, only commands from this
+  session will be shown
+- `--filter <FILTER>`: Initial filter mode to apply (defaults to none if
+  omitted). Valid values:
   - `duplicates`: Hide duplicate commands, showing only unique entries
   - `session_id`: Filter by the provided session ID
   - `folder`: Filter to commands run in the same folder
@@ -71,6 +78,29 @@ The filters can be toggled at runtime using the keybindings:
 - `ctrl-s`: toggle session id
 - `ctrl-f`: toggle folder
 - `ctrl-e`: toggle exit code success
+
+### Search Syntax
+
+We borrow `fzf`'s syntax for matching items:
+
+| Token      | Match type                 | Description                      |
+| ---------- | -------------------------- | -------------------------------- |
+| `foo`      | fuzzy-match                | items that match `foo`           |
+| `^jj`      | prefix-exact-match         | items that start with `jj`       |
+| `.rs$`     | suffix-exact-match         | items that end with `.rs`        |
+| `'main.rs` | exact-match (quoted)       | items that include `main.rs`     |
+| `!git`     | inverse-exact-match        | items that do not include `git`  |
+| `!.py$`    | inverse-suffix-exact-match | items that do not end with `.py` |
+
+We also supports the combination of tokens.
+
+- Whitespace has the meaning of `AND`. With the term `git rebase`, `osh-oxy`
+  will search for items that match **both** `git` and `rebase`.
+- `|` means `OR` (note the spaces around `|`). With the term
+  `.md$ | .markdown$`, `osh-oxy` will search for items ends with either `.md` or
+  `.markdown`.
+- `OR` has higher precedence. For example, `readme .md$ | .markdown$` is
+  interpreted as `readme AND (.md$ OR .markdown$)`.
 
 ## example zsh integration
 

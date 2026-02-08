@@ -1,6 +1,6 @@
 r reimplement basics we need (tui with ratatui and fuzzy-matcher as lib) to enable reload/filters
   - refactor index and selection handling
-  - fuzzer in owm module
+  x fuzzer in owm module
   - hardcoded offsets (height...)
   - cache filter views?
   x combine filters?
@@ -9,7 +9,8 @@ r reimplement basics we need (tui with ratatui and fuzzy-matcher as lib) to enab
   - cancel running matchers if we type
 - add a mechanism to filer some commands permanently
   - or add a command that lets the user interactively prune history files?
-- enable ^'.. chars in query 
+x enable ^'.. chars in query 
+o ctrl-w should delete a word
 - better duplication filtering
 - understand Rust pdqsort in detail and write better benchs
     - also look into glidesort: https://github.com/orlp/glidesort

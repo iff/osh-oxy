@@ -2,28 +2,146 @@ use std::{iter::Copied, ops::Range, slice::Iter};
 
 use fuzzy_matcher::{FuzzyMatcher, skim::SkimMatcherV2};
 use itertools::Either;
-use parser::ParsedQuery;
+use parser::{OrGroup, ParsedQuery, Term, TermType};
 
 const BYTES_1M: usize = 1024 * 1024 * 1024;
 
 /// Query parser for fuzzy matching with AND/OR combinators.
 ///
 /// Grammar:
-/// - `foo bar` → foo AND bar (space = AND)
-/// - `foo | bar` → foo OR bar (` | ` = OR, must have spaces)
-/// - OR binds tighter: `a b | c` → a AND (b OR c)
+/// - `foo bar` -> foo AND bar (space = AND)
+/// - `foo | bar` -> foo OR bar (` | ` = OR, must have spaces)
+/// - OR binds tighter: `a b | c` -> a AND (b OR c)
+///
+/// Special operators (prefixes/suffixes):
+/// - `^foo` -> prefix match (line starts with "foo")
+/// - `foo$` -> suffix match (line ends with "foo")
+/// - `'foo` -> exact substring match (no fuzzy)
+/// - `!foo` -> inverse exact match (must NOT contain "foo")
+/// - `!foo$` -> inverse suffix match
 mod parser {
     use nom::{
         IResult, Parser,
+        branch::alt,
         bytes::complete::{tag, take_while1},
         character::complete::space1,
-        combinator::map,
+        combinator::{map, rest},
         multi::separated_list1,
+        sequence::preceded,
     };
 
-    /// A single search term (non-whitespace sequence).
+    /// How to match a term against the line.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum TermType {
+        /// Default fuzzy matching
+        Fuzzy,
+        /// `^pattern` - line must start with pattern
+        Prefix,
+        /// `pattern$` - line must end with pattern
+        Suffix,
+        /// `'pattern` - exact substring match (not fuzzy)
+        Exact,
+        /// `!pattern` - line must NOT contain pattern
+        InverseExact,
+        /// `!pattern$` - line must NOT end with pattern
+        InverseSuffix,
+    }
+
+    /// A single search term with its match type.
     pub struct Term {
         pub pattern: String,
+        pub term_type: TermType,
+    }
+
+    /// Parses `^pattern` -> Prefix
+    fn parse_prefix(input: &str) -> IResult<&str, Term> {
+        map(preceded(tag("^"), rest), |pattern: &str| Term {
+            pattern: pattern.to_string(),
+            term_type: TermType::Prefix,
+        })
+        .parse(input)
+    }
+
+    /// Parses `'pattern` -> Exact
+    fn parse_exact(input: &str) -> IResult<&str, Term> {
+        map(preceded(tag("'"), rest), |pattern: &str| Term {
+            pattern: pattern.to_string(),
+            term_type: TermType::Exact,
+        })
+        .parse(input)
+    }
+
+    /// Parses `!pattern` -> InverseExact
+    fn parse_inverse_exact(input: &str) -> IResult<&str, Term> {
+        map(preceded(tag("!"), rest), |pattern: &str| Term {
+            pattern: pattern.to_string(),
+            term_type: TermType::InverseExact,
+        })
+        .parse(input)
+    }
+
+    /// Parses `pattern$` -> Suffix (pattern must be non-empty)
+    fn parse_suffix(input: &str) -> IResult<&str, Term> {
+        if !input.ends_with('$') || input.len() < 2 {
+            return Err(nom::Err::Error(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::Tag,
+            )));
+        }
+        let pattern = &input[..input.len() - 1];
+        Ok((
+            "",
+            Term {
+                pattern: pattern.to_string(),
+                term_type: TermType::Suffix,
+            },
+        ))
+    }
+
+    /// Parses `!pattern$` -> InverseSuffix (must not end with pattern)
+    fn parse_inverse_suffix(input: &str) -> IResult<&str, Term> {
+        let (rest, _) = tag::<_, _, nom::error::Error<&str>>("!")(input)?;
+        if !rest.ends_with('$') || rest.len() < 2 {
+            return Err(nom::Err::Error(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::Tag,
+            )));
+        }
+        let pattern = &rest[..rest.len() - 1];
+        Ok((
+            "",
+            Term {
+                pattern: pattern.to_string(),
+                term_type: TermType::InverseSuffix,
+            },
+        ))
+    }
+
+    /// Parses plain `pattern` -> Fuzzy
+    fn parse_fuzzy(input: &str) -> IResult<&str, Term> {
+        Ok((
+            "",
+            Term {
+                pattern: input.to_string(),
+                term_type: TermType::Fuzzy,
+            },
+        ))
+    }
+
+    /// Parse a raw token into a Term, extracting any operator prefix/suffix.
+    fn parse_term_type(input: &str) -> Term {
+        #[allow(clippy::expect_used)]
+        alt((
+            parse_inverse_suffix,
+            parse_inverse_exact,
+            parse_prefix,
+            parse_exact,
+            parse_suffix,
+            parse_fuzzy,
+        ))
+        .parse(input)
+        .map(|(_, term)| term)
+        .expect("parse_fuzzy is a catch-all that always succeeds")
     }
 
     /// Terms connected by OR (` | `). Any term matching = group matches.
@@ -36,10 +154,10 @@ mod parser {
         pub groups: Vec<OrGroup>,
     }
 
-    /// Parses a single non-whitespace token.
+    /// Parses a single non-whitespace token into a Term.
     fn parse_term(input: &str) -> IResult<&str, Term> {
-        map(take_while1(|c: char| !c.is_whitespace()), |s: &str| Term {
-            pattern: s.to_string(),
+        map(take_while1(|c: char| !c.is_whitespace()), |s: &str| {
+            parse_term_type(s)
         })
         .parse(input)
     }
@@ -87,31 +205,88 @@ impl FuzzyEngine {
         }
     }
 
+    /// Match a single term against the line, returning (score, indices) or None.
+    /// We match Skims behavior here and use the pattern length as a score for non-fuzzy matcher.
+    fn match_term(&self, line: &str, term: &Term) -> Option<(i64, Vec<usize>)> {
+        match term.term_type {
+            TermType::Fuzzy => self.matcher.fuzzy_indices(line, &term.pattern),
+
+            TermType::Exact => {
+                let start = line.find(&term.pattern)?;
+                let indices: Vec<usize> = (start..start + term.pattern.len()).collect();
+                Some((term.pattern.len() as i64, indices))
+            }
+
+            TermType::Prefix => {
+                if line.starts_with(&term.pattern) {
+                    let indices: Vec<usize> = (0..term.pattern.len()).collect();
+                    Some((term.pattern.len() as i64, indices))
+                } else {
+                    None
+                }
+            }
+
+            TermType::Suffix => {
+                if line.ends_with(&term.pattern) {
+                    let start = line.len() - term.pattern.len();
+                    let indices: Vec<usize> = (start..line.len()).collect();
+                    Some((term.pattern.len() as i64, indices))
+                } else {
+                    None
+                }
+            }
+
+            // TODO: match_line returns (0, vec![]) for "no match", so we use score 1 here
+            // to distinguish "inverse matched" from "no match". Consider introducing:
+            //   enum MatchResult { NoMatch, Match { score: i64, indices: Vec<usize> } }
+            TermType::InverseExact => {
+                if line.contains(&term.pattern) {
+                    None
+                } else {
+                    Some((1, vec![]))
+                }
+            }
+
+            TermType::InverseSuffix => {
+                if line.ends_with(&term.pattern) {
+                    None
+                } else {
+                    Some((1, vec![]))
+                }
+            }
+        }
+    }
+
+    /// Match an OR group: returns first matching term's (score, indices), or None if no term matches.
+    fn match_or_group(&self, line: &str, group: &OrGroup) -> Option<(i64, Vec<usize>)> {
+        group
+            .terms
+            .iter()
+            .find_map(|term| self.match_term(line, term))
+    }
+
     pub fn match_line(&self, line: &str) -> (i64, Vec<usize>) {
         if self.parsed_query.groups.is_empty() {
             return (0, vec![]);
         }
 
-        let mut total_score: i64 = 0;
-        let mut all_indices: Vec<usize> = Vec::new();
+        // AND: all groups must match
+        let group_results: Option<Vec<_>> = self
+            .parsed_query
+            .groups
+            .iter()
+            .map(|group| self.match_or_group(line, group))
+            .collect();
 
-        for group in &self.parsed_query.groups {
-            let mut group_matched = false;
+        let Some(results) = group_results else {
+            return (0, vec![]);
+        };
 
-            for term in &group.terms {
-                if let Some((score, indices)) = self.matcher.fuzzy_indices(line, &term.pattern) {
-                    total_score = total_score.saturating_add(score);
-                    all_indices.extend(indices);
-                    group_matched = true;
-                    break;
-                }
-            }
-
-            if !group_matched {
-                return (0, vec![]);
-            }
-        }
-
+        let total_score = results.iter().map(|(score, _)| score).sum();
+        let mut all_indices: Vec<usize> = results
+            .into_iter()
+            .flat_map(|(_, indices)| indices)
+            .collect();
         all_indices.sort_unstable();
         all_indices.dedup();
 
@@ -151,6 +326,10 @@ impl FuzzyIndex {
     /// number of matches or None (if all)
     pub fn len(&self) -> Option<usize> {
         self.indices.as_ref().map(|ind| ind.len())
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len().is_none()
     }
 
     /// gets the first n indices
@@ -379,5 +558,92 @@ mod tests {
 
         let (score2, _) = engine.match_line("grep something");
         assert_eq!(score2, 0, "should not match grep alone (no pipe)");
+    }
+
+    // Phase 3: Special operators
+
+    #[test]
+    fn prefix_match() {
+        let engine = FuzzyEngine::new("^git".to_string());
+
+        let (score1, indices) = engine.match_line("git commit");
+        assert!(score1 > 0, "should match - starts with git");
+        assert_eq!(indices, vec![0, 1, 2]);
+
+        let (score2, _) = engine.match_line("fugitive git");
+        assert_eq!(score2, 0, "should not match - git not at start");
+    }
+
+    #[test]
+    fn suffix_match() {
+        let engine = FuzzyEngine::new(".rs$".to_string());
+
+        let (score1, indices) = engine.match_line("main.rs");
+        assert!(score1 > 0, "should match - ends with .rs");
+        assert_eq!(indices, vec![4, 5, 6]);
+
+        let (score2, _) = engine.match_line("main.rs.bak");
+        assert_eq!(score2, 0, "should not match - .rs not at end");
+    }
+
+    #[test]
+    fn exact_match() {
+        let engine = FuzzyEngine::new("'git".to_string());
+
+        let (score1, _) = engine.match_line("git commit");
+        assert!(score1 > 0, "should match - contains git");
+
+        let (score2, _) = engine.match_line("gti commit");
+        assert_eq!(score2, 0, "should not match - gti is not git (no fuzzy)");
+    }
+
+    #[test]
+    fn inverse_exact_match() {
+        let engine = FuzzyEngine::new("!test".to_string());
+
+        let (score1, _) = engine.match_line("cargo build");
+        assert!(score1 > 0, "should match - does not contain test");
+
+        let (score2, _) = engine.match_line("cargo test");
+        assert_eq!(score2, 0, "should not match - contains test");
+    }
+
+    #[test]
+    fn inverse_suffix_match() {
+        let engine = FuzzyEngine::new("!.tmp$".to_string());
+
+        let (score1, _) = engine.match_line("main.rs");
+        assert!(score1 > 0, "should match - does not end with .tmp");
+
+        let (score2, _) = engine.match_line("file.tmp");
+        assert_eq!(score2, 0, "should not match - ends with .tmp");
+    }
+
+    #[test]
+    fn combined_operators() {
+        let engine = FuzzyEngine::new("^git !test".to_string());
+
+        let (score1, _) = engine.match_line("git commit");
+        assert!(score1 > 0, "should match - starts with git, no test");
+
+        let (score2, _) = engine.match_line("git test");
+        assert_eq!(score2, 0, "should not match - contains test");
+
+        let (score3, _) = engine.match_line("fugitive git");
+        assert_eq!(score3, 0, "should not match - doesn't start with git");
+    }
+
+    #[test]
+    fn operators_with_or() {
+        let engine = FuzzyEngine::new(".rs$ | .py$".to_string());
+
+        let (score1, _) = engine.match_line("main.rs");
+        assert!(score1 > 0, "should match .rs");
+
+        let (score2, _) = engine.match_line("main.py");
+        assert!(score2 > 0, "should match .py");
+
+        let (score3, _) = engine.match_line("main.go");
+        assert_eq!(score3, 0, "should not match .go");
     }
 }
