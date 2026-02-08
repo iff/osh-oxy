@@ -15,6 +15,7 @@ use crate::{
 pub mod commands;
 pub mod event;
 pub mod formats;
+pub mod matcher;
 pub mod ui;
 
 pub fn mmap(f: &File) -> &'_ [u8] {

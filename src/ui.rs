@@ -3,9 +3,6 @@ use std::{
     fmt::Display,
     fs::File,
     io::Write,
-    iter::Copied,
-    ops::Range,
-    slice::Iter,
     str::FromStr,
     sync::{Arc, Mutex},
     thread,
@@ -20,7 +17,6 @@ use crossterm::{
     event::{self, KeyCode, KeyModifiers},
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use itertools::Either;
 use ratatui::{
     Frame, Terminal,
     backend::CrosstermBackend,
@@ -31,33 +27,10 @@ use ratatui::{
 };
 use rayon::prelude::*;
 
-use crate::event::Event;
-
-mod fuzzer {
-    use fuzzy_matcher::{FuzzyMatcher, skim::SkimMatcherV2};
-    const BYTES_1M: usize = 1024 * 1024 * 1024;
-
-    pub struct FuzzyEngine {
-        query: String,
-        matcher: SkimMatcherV2,
-    }
-
-    impl FuzzyEngine {
-        pub fn new(query: String) -> Self {
-            let matcher = SkimMatcherV2::default().element_limit(BYTES_1M);
-            let matcher = matcher.smart_case();
-            FuzzyEngine { matcher, query }
-        }
-
-        pub fn match_line(&self, line: &str) -> (i64, Vec<usize>) {
-            if let Some((score, indices)) = self.matcher.fuzzy_indices(line, &self.query) {
-                return (score, indices);
-            }
-
-            (0, vec![])
-        }
-    }
-}
+use crate::{
+    event::Event,
+    matcher::{FuzzyEngine, FuzzyIndex},
+};
 
 struct EventReader {
     // TODO this is a bit ugly can we refactor this?
@@ -182,81 +155,6 @@ impl Tui {
     }
 }
 
-// TODO should also own the data?
-struct FuzzyIndex {
-    /// indices into [`App.history`]
-    indices: Option<Vec<usize>>,
-    /// scores parallel to indices
-    scores: Option<Vec<i64>>,
-    /// highlight matches, globally indexed, parallel to [`App.history`]
-    highlight_indices: Option<Vec<Vec<usize>>>,
-}
-
-impl FuzzyIndex {
-    /// creates an identity mapping
-    pub fn identity() -> Self {
-        Self {
-            indices: None,
-            scores: None,
-            highlight_indices: None,
-        }
-    }
-
-    /// crates an index from a matcher result
-    pub fn new(scored_indices: Vec<(usize, i64)>, highlight_indices: Vec<Vec<usize>>) -> Self {
-        let (indices, scores) = scored_indices.into_iter().unzip();
-        Self {
-            indices: Some(indices),
-            scores: Some(scores),
-            highlight_indices: Some(highlight_indices),
-        }
-    }
-
-    /// number of matches or None (if all)
-    pub fn len(&self) -> Option<usize> {
-        self.indices.as_ref().map(|ind| ind.len())
-    }
-
-    /// gets the first n indices
-    pub fn first_n(&self, n: usize) -> Either<Copied<Iter<'_, usize>>, Range<usize>> {
-        if let Some(indices) = &self.indices {
-            let visible_count = n.min(indices.len());
-            #[allow(clippy::indexing_slicing)] // slicing: using min ensures the slice is valid
-            Either::Left(indices[0..visible_count].iter().copied())
-        } else {
-            Either::Right(0..n)
-        }
-
-        // TODO this should return (index, history_index, highlight_indices, scores)?
-    }
-
-    /// get the i-th index
-    pub fn get(&self, index: usize) -> Option<usize> {
-        if let Some(indices) = &self.indices {
-            indices.get(index).copied()
-        } else {
-            Some(index)
-        }
-    }
-
-    pub fn matcher_score(&self, index: usize) -> Option<i64> {
-        if let Some(scores) = &self.scores {
-            scores.get(index).copied()
-        } else {
-            None
-        }
-    }
-
-    /// get the highlight indices
-    pub fn highlight_indices(&self, index: usize) -> Option<&Vec<usize>> {
-        if let Some(indices) = &self.highlight_indices {
-            indices.get(index)
-        } else {
-            None
-        }
-    }
-}
-
 /// App holds the state of the application
 struct App {
     /// Current value of the input box
@@ -319,7 +217,7 @@ impl App {
 
         // TODO matcher should go into its own module and accumulate results into a struct before
         // sorting
-        let matcher = fuzzer::FuzzyEngine::new(self.input.clone());
+        let matcher = FuzzyEngine::new(self.input.clone());
         // TODO filtering should also work with an empty query
         let scores: (Vec<i64>, Vec<Vec<usize>>) = self
             .events
