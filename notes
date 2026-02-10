@@ -9,11 +9,11 @@ r reimplement basics we need (tui with ratatui and fuzzy-matcher as lib) to enab
   - cancel running matchers if we type
 - add a mechanism to filer some commands permanently
   - or add a command that lets the user interactively prune history files?
-x enable ^'.. chars in query 
-o ctrl-w should delete a word
 - better duplication filtering
 - understand Rust pdqsort in detail and write better benchs
     - also look into glidesort: https://github.com/orlp/glidesort
+x enable ^'.. chars in query 
+x ctrl-w should delete a word
 x speedups (currently not an issue with my history volume)
   x using binary format gets us the most
   x only mild speedups for:
