@@ -327,6 +327,31 @@ impl App {
         self.run_matcher();
     }
 
+    /// This mimics ctrl-w found in most terms
+    fn delete_word(&mut self) {
+        if self.character_index == 0 {
+            return;
+        }
+
+        let byte_idx = self.byte_index();
+        let before_cursor = &self.input[..byte_idx];
+
+        // Trim trailing whitespace, then find last whitespace (word boundary)
+        let trimmed = before_cursor.trim_end_matches(|c: char| c.is_whitespace());
+        let word_start_byte = trimmed
+            .rfind(char::is_whitespace)
+            .map(|i| i + trimmed[i..].chars().next().map_or(0, |c| c.len_utf8()))
+            .unwrap_or(0);
+
+        let word_start_char = self.input[..word_start_byte].chars().count();
+        let before_word = self.input.chars().take(word_start_char);
+        let after_cursor = self.input.chars().skip(self.character_index);
+        self.input = before_word.chain(after_cursor).collect();
+        self.character_index = self.clamp_cursor(word_start_char);
+
+        self.run_matcher();
+    }
+
     fn move_selection_up(&mut self, available_height: usize) {
         let max_index = available_height.saturating_sub(3);
         self.selected_index = (self.selected_index + 1).min(max_index);
@@ -424,6 +449,9 @@ impl App {
                             (KeyCode::Char('x'), KeyModifiers::CONTROL) => {
                                 self.show_score = !self.show_score;
                                 self.run_matcher();
+                            }
+                            (KeyCode::Char('w'), KeyModifiers::CONTROL) => {
+                                self.delete_word();
                             }
                             (KeyCode::Backspace, _) => self.delete_char(),
                             (KeyCode::Left, _) => self.move_cursor_left(),
