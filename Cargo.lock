@@ -1871,9 +1871,9 @@ checksum = "7694e1cfe791f8d31026952abf09c69ca6f6fa4e1a1229e18988f06a04a12dca"
 
 [[package]]
 name = "timeago"
-version = "0.4.2"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1710e589de0a76aaf295cd47a6699f6405737dbfd3cf2b75c92d000b548d0e6"
+checksum = "e86660b0935ca5912eb155f5b3794e2f8f1a09d8c00c9efd5c1075ca26403638"
 dependencies = [
  "chrono",
  "isolang",
