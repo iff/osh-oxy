@@ -24,9 +24,10 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - name: install stable
-        uses: dtolnay/rust-toolchain@nightly
+      - name: install nightly
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # branch=master
         with:
+          toolchain: nightly
           components: rustfmt
       - name: cargo fmt --check
         run: cargo fmt --check
@@ -42,8 +43,9 @@ jobs:
         with:
           persist-credentials: false
       - name: install stable
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # branch=master
         with:
+          toolchain: stable
           components: clippy
       - name: cargo clippy
         uses: giraffate/clippy-action@13b9d32482f25d29ead141b79e7e04e7900281e0 # v1.0.1
@@ -59,6 +61,8 @@ jobs:
         with:
           persist-credentials: false
       - name: install stable
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # branch=master
+        with:
+          toolchain: stable
       - name: cargo test --locked
         run: cargo test --locked --all-features
