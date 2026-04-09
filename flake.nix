@@ -1,5 +1,5 @@
 {
-  description = "osh-oxy: fzf shell history search";
+  description = "osh-oxy: fuzzy shell history search";
 
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
@@ -21,33 +21,24 @@
         overlays = [
           (import rust-overlay)
           (self: super: {
-            rustToolchain =
-              let
-                rust = super.rust-bin;
-              in
-              if builtins.pathExists ./rust-toolchain.toml then
-                rust.fromRustupToolchainFile ./rust-toolchain.toml
-              else if builtins.pathExists ./rust-toolchain then
-                rust.fromRustupToolchainFile ./rust-toolchain
-              else
-                rust.stable.latest.default;
-
-            rustNightly = super.rust-bin.selectLatestNightlyWith (
-              toolchain:
-              toolchain.default.override {
-                extensions = [ "rustfmt" ];
-              }
-            );
+            rustToolchain = pkgs.symlinkJoin {
+              name = "rust-toolchain";
+              paths = [
+                (super.rust-bin.stable.latest.minimal.override {
+                  extensions = [
+                    "clippy"
+                    "rust-docs"
+                  ];
+                })
+                (super.rust-bin.selectLatestNightlyWith (toolchain: toolchain.rustfmt))
+              ];
+            };
           })
         ];
 
         pkgs = import nixpkgs { inherit system overlays; };
 
-        rustfmt-nightly = pkgs.writeShellScriptBin "rustfmt" ''
-          exec ${pkgs.rustNightly}/bin/rustfmt "$@"
-        '';
-
-        app = pkgs.rustPlatform.buildRustPackage {
+        osh = pkgs.rustPlatform.buildRustPackage {
           pname = "osh-oxy";
           version = "0.0.2";
           src = ./.;
@@ -57,27 +48,30 @@
           };
 
           nativeBuildInputs = [ pkgs.pkg-config ];
+
+          meta = {
+            description = "fuzzy shell history search";
+            homepage = "https://github.com/iff/osh-oxy";
+            license = pkgs.lib.licenses.mit;
+            mainProgram = "osh-oxy";
+          };
         };
-
-        bins = [ rustfmt-nightly ];
-
       in
       {
         packages = {
-          app = app;
-          default = app;
+          app = osh;
+          default = osh;
         };
 
         apps.default = {
           type = "app";
-          program = "${app}/bin/osh-oxy";
+          program = "${osh}/bin/osh-oxy";
         };
 
         devShells.default = pkgs.mkShell {
           packages =
             with pkgs;
-            bins
-            ++ [
+            [
               rustToolchain
               pkg-config
               cargo-deny
@@ -92,7 +86,6 @@
 
           shellHook = ''
             echo "Rust stable: $(${pkgs.rustToolchain}/bin/rustc --version)"
-            echo "Nightly rustfmt: $(rustfmt --version)"
           '';
         };
       }
