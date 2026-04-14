@@ -66,3 +66,33 @@ jobs:
           toolchain: stable
       - name: cargo test --locked
         run: cargo test --locked --all-features
+
+  coverage:
+    runs-on: ubuntu-latest
+    name: ubuntu / stable / coverage
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # tag=v6.0.2
+        with:
+          submodules: true
+      - name: Install stable
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # branch=master
+        with:
+          toolchain: stable
+          components: llvm-tools-preview
+      - name: cargo install cargo-llvm-cov
+        uses: taiki-e/install-action@68675c5a5f1a6950c3975d33f3ae0ef155e5bf3d # tag=v2.68.15
+        with:
+          tool: cargo-llvm-cov
+      - name: cargo generate-lockfile
+        if: hashFiles('Cargo.lock') == ''
+        run: cargo generate-lockfile
+      - name: cargo llvm-cov
+        run: cargo llvm-cov --locked --all-features --lcov --output-path lcov.info
+      - name: Record Rust version
+        run: echo "RUST=$(rustc --version)" >> "$GITHUB_ENV"
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # tag=v5.5.2
+        with:
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          env_vars: OS,RUST
