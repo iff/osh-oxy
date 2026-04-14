@@ -591,3 +591,26 @@ impl App {
         frame.render_widget(preview, preview_area);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn event_filter_from_str_roundtrip() {
+        let cases = [
+            ("duplicates", EventFilter::Duplicates),
+            ("session_id", EventFilter::SessionId),
+            ("folder", EventFilter::Folder),
+            ("exit_code_success", EventFilter::ExitCodeSuccess),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(input.parse::<EventFilter>().unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn event_filter_from_str_unknown() {
+        assert!("unknown".parse::<EventFilter>().is_err());
+    }
+}
