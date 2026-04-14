@@ -313,7 +313,7 @@ impl FuzzyIndex {
         }
     }
 
-    /// crates an index from a matcher result
+    /// crates an index from a sorted matcher result
     pub fn new(scored_indices: Vec<(usize, i64)>, highlight_indices: Vec<Vec<usize>>) -> Self {
         let (indices, scores) = scored_indices.into_iter().unzip();
         Self {
@@ -373,6 +373,77 @@ impl FuzzyIndex {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fuzzy_index_identity_get() {
+        let index = FuzzyIndex::identity();
+        assert_eq!(index.get(0), Some(0));
+        assert_eq!(index.get(42), Some(42));
+    }
+
+    #[test]
+    fn fuzzy_index_identity_len_and_empty() {
+        let index = FuzzyIndex::identity();
+        assert_eq!(index.len(), None);
+        assert!(index.is_empty());
+    }
+
+    #[test]
+    fn fuzzy_index_identity_first_n() {
+        let index = FuzzyIndex::identity();
+        let result: Vec<usize> = index.first_n(3).collect();
+        assert_eq!(result, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn fuzzy_index_identity_no_highlights_or_scores() {
+        let index = FuzzyIndex::identity();
+        assert_eq!(index.highlight_indices(0), None);
+        assert_eq!(index.matcher_score(0), None);
+    }
+
+    #[test]
+    fn fuzzy_index_filtered_get() {
+        let index = FuzzyIndex::new(vec![(5, 100), (2, 50)], vec![vec![0, 1], vec![3]]);
+        assert_eq!(index.get(0), Some(5));
+        assert_eq!(index.get(1), Some(2));
+        assert_eq!(index.get(2), None);
+    }
+
+    #[test]
+    fn fuzzy_index_filtered_len() {
+        let index = FuzzyIndex::new(vec![(5, 100), (2, 50)], vec![vec![], vec![]]);
+        assert_eq!(index.len(), Some(2));
+        assert!(!index.is_empty());
+    }
+
+    #[test]
+    fn fuzzy_index_filtered_first_n() {
+        let index = FuzzyIndex::new(
+            vec![(5, 100), (2, 50), (8, 10)],
+            vec![vec![], vec![], vec![]],
+        );
+        let result: Vec<usize> = index.first_n(2).collect();
+        assert_eq!(result, vec![5, 2]);
+    }
+
+    #[test]
+    fn fuzzy_index_filtered_first_n_clamps_to_available() {
+        let index = FuzzyIndex::new(vec![(1, 10)], vec![vec![]]);
+        let result: Vec<usize> = index.first_n(10).collect();
+        assert_eq!(result, vec![1]);
+    }
+
+    #[test]
+    fn fuzzy_index_filtered_scores_and_highlights() {
+        let index = FuzzyIndex::new(vec![(5, 100), (2, 50)], vec![vec![0, 1], vec![3, 4]]);
+        assert_eq!(index.matcher_score(0), Some(100));
+        assert_eq!(index.matcher_score(1), Some(50));
+        assert_eq!(index.matcher_score(2), None);
+        assert_eq!(index.highlight_indices(0), Some(&vec![0, 1]));
+        assert_eq!(index.highlight_indices(1), Some(&vec![3, 4]));
+        assert_eq!(index.highlight_indices(2), None);
+    }
 
     #[test]
     fn single_term_matches() {
