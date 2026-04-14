@@ -62,8 +62,8 @@ mod tests {
     fn write_binary_event() -> anyhow::Result<()> {
         let temp_file = NamedTempFile::new()?;
 
-        let data = &[0; 1000];
-        let mut u = Unstructured::new(data);
+        let data: Vec<u8> = (1u8..=255).cycle().take(3000).collect();
+        let mut u = Unstructured::new(&data);
         let e = crate::event::Event::arbitrary(&mut u).unwrap();
 
         let mut writer = BinaryWriter::new(std::fs::File::create(temp_file.path())?);
@@ -75,8 +75,8 @@ mod tests {
     #[test]
     fn roundtrip_binary_event() -> anyhow::Result<()> {
         let num_events = 30;
-        let data = &[0; 300];
-        let mut u = Unstructured::new(data);
+        let data: Vec<u8> = (1u8..=255).cycle().take(1000).collect();
+        let mut u = Unstructured::new(&data);
 
         let mut events = Vec::new();
         let mut buffer = Vec::new();
@@ -90,7 +90,7 @@ mod tests {
 
         let read_events = load_osh_events(buffer.as_ref())?;
         assert_eq!(read_events.len(), num_events);
-        assert!(read_events.into_iter().eq(events.into_iter().rev()));
+        assert!(read_events.into_iter().eq(events.into_iter()));
 
         Ok(())
     }
