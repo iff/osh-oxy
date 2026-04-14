@@ -1,3 +1,6 @@
+//! Binary format using `rmp_serde`. Wire layout: each record is an 8-byte LE length prefix
+//! followed by a msgpack-encoded [`Event`]. This allows O(1) appends without deserialising the
+//! whole file.
 use std::io::Write;
 
 use rmp_serde::{decode, encode::to_vec};
@@ -29,6 +32,7 @@ impl<W: Write> BinaryWriter<W> {
     }
 }
 
+/// parse and collect all [`Event`]s in the slice
 pub fn load_osh_events(data: &[u8]) -> std::io::Result<Vec<Event>> {
     let mut events = Vec::new();
     let mut cursor = 0;

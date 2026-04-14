@@ -1,3 +1,5 @@
+//! Deprecated JSON-per-line format with a header. Only used to migrate old `.osh` files to the
+//! current binary format.
 #![allow(deprecated)]
 
 use chrono::{DateTime, Local};
@@ -69,6 +71,7 @@ impl Entry {
     }
 }
 
+/// parse and collect all [`JsonLineEvent`]s in the slice
 pub fn load_osh_events(data: &[u8]) -> std::io::Result<Vec<JsonLineEvent>> {
     let mut events = Vec::new();
     for line in data.split(|c| *c == b'\n') {

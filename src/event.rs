@@ -9,13 +9,18 @@ use crate::formats::rmp::BinaryWriter;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
+/// Event format for entries in the history file.
 pub struct Event {
+    /// time when execution of the command began
     pub timestamp_millis: i64,
     pub command: String,
+    /// records time when the command ended (can be used to calculate duration)
     pub endtime: i64,
     pub exit_code: i16,
     pub folder: String,
+    /// a special machine id to filter by machine
     pub machine: String,
+    /// a special session id to filter by session
     pub session: String,
 }
 
@@ -38,6 +43,8 @@ impl Arbitrary<'_> for Event {
 
 #[allow(deprecated)]
 impl From<JsonLineEvent> for Event {
+    /// Converts a `JsonLineEvent` to the new binary format. The `JsonLineEven` format is deprecated
+    /// and this is only used to convert old history files to the binary format.
     fn from(event: JsonLineEvent) -> Self {
         let timestamp = event.timestamp.timestamp_millis();
         Self {
