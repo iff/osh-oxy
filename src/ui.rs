@@ -596,6 +596,141 @@ impl App {
 mod tests {
     use super::*;
 
+    fn make_app(input: &str) -> App {
+        let character_index = input.chars().count();
+        App {
+            input: input.to_string(),
+            character_index,
+            history: Vec::new(),
+            indexer: crate::matcher::FuzzyIndex::identity(),
+            reader: EventReader::new(),
+            events: Vec::new(),
+            selected_index: 0,
+            filters: HashSet::new(),
+            folder: String::new(),
+            session_id: None,
+            show_score: false,
+        }
+    }
+
+    #[test]
+    fn delete_word_basic() {
+        let mut app = make_app("hello world");
+        app.delete_word();
+        assert_eq!(app.input, "hello ");
+        assert_eq!(app.character_index, 6);
+    }
+
+    #[test]
+    fn delete_word_trailing_spaces() {
+        let mut app = make_app("hello   ");
+        app.delete_word();
+        assert_eq!(app.input, "");
+        assert_eq!(app.character_index, 0);
+    }
+
+    #[test]
+    fn delete_word_single_word() {
+        let mut app = make_app("hello");
+        app.delete_word();
+        assert_eq!(app.input, "");
+        assert_eq!(app.character_index, 0);
+    }
+
+    #[test]
+    fn delete_word_at_start_is_noop() {
+        let mut app = make_app("hello");
+        app.character_index = 0;
+        app.delete_word();
+        assert_eq!(app.input, "hello");
+        assert_eq!(app.character_index, 0);
+    }
+
+    #[test]
+    fn delete_word_mid_word() {
+        let mut app = make_app("hello world");
+        app.character_index = 7; // cursor between 'w' and 'o' in "world"
+        app.delete_word();
+        assert_eq!(app.input, "hello orld");
+        assert_eq!(app.character_index, 6);
+    }
+
+    #[test]
+    fn byte_index_ascii() {
+        let app = make_app("hello");
+        assert_eq!(app.byte_index(), 5);
+    }
+
+    #[test]
+    fn byte_index_multibyte() {
+        // "é" is 2 bytes; cursor after it should give byte index 2
+        let mut app = make_app("é");
+        app.character_index = 1;
+        assert_eq!(app.byte_index(), 2);
+    }
+
+    #[test]
+    fn byte_index_at_start() {
+        let mut app = make_app("hello");
+        app.character_index = 0;
+        assert_eq!(app.byte_index(), 0);
+    }
+
+    #[test]
+    fn toggle_filter_adds_and_removes() {
+        let mut app = make_app("");
+        app.toggle_filter(EventFilter::Duplicates);
+        assert!(app.filters.contains(&EventFilter::Duplicates));
+        app.toggle_filter(EventFilter::Duplicates);
+        assert!(!app.filters.contains(&EventFilter::Duplicates));
+    }
+
+    #[test]
+    fn active_filters_empty() {
+        let app = make_app("");
+        assert_eq!(app.active_filters(), "");
+    }
+
+    #[test]
+    fn active_filters_shows_abbreviations() {
+        let mut app = make_app("");
+        app.toggle_filter(EventFilter::ExitCodeSuccess);
+        app.toggle_filter(EventFilter::Folder);
+        let filters = app.active_filters();
+        assert!(filters.contains('E'));
+        assert!(filters.contains('F'));
+    }
+
+    #[test]
+    fn move_selection_up_increments() {
+        let mut app = make_app("");
+        app.move_selection_up(10);
+        assert_eq!(app.selected_index, 1);
+    }
+
+    #[test]
+    fn move_selection_up_clamps_to_height() {
+        let mut app = make_app("");
+        app.selected_index = 6;
+        app.move_selection_up(8); // max = 8 - 3 = 5
+        assert_eq!(app.selected_index, 5);
+    }
+
+    #[test]
+    fn move_selection_down_decrements() {
+        let mut app = make_app("");
+        app.selected_index = 3;
+        app.move_selection_down();
+        assert_eq!(app.selected_index, 2);
+    }
+
+    #[test]
+    fn move_selection_down_clamps_at_zero() {
+        let mut app = make_app("");
+        app.move_selection_down();
+        assert_eq!(app.selected_index, 0);
+    }
+
     #[test]
     fn event_filter_from_str_roundtrip() {
         let cases = [
