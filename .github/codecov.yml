@@ -11,9 +11,9 @@ coverage:
         # Avoid false negatives
         threshold: 1%
 
-# Test files aren't important for coverage
 ignore:
-  - "tests"
+  - "tests"                       # test fixtures
+  - "src/formats/json_lines.rs"   # deprecated, migration only
 
 # Make comments less noisy
 comment:
