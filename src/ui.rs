@@ -164,9 +164,7 @@ struct App {
     input: String,
     /// position of cursor in the editor area.
     character_index: usize,
-    /// display entries: (time-ago label, command) pairs derived from `events`
-    history: Vec<(String, String)>,
-    /// indices into history sorted according to fuzzer score if we have a query
+    /// indices into events sorted according to fuzzy score if we have a query
     indexer: FuzzyIndex,
     /// reader for collecting events from background thread
     reader: EventReader,
@@ -193,7 +191,6 @@ impl App {
         let character_index = query.len();
         Self {
             input: query,
-            history: Vec::new(),
             indexer: FuzzyIndex::identity(),
             character_index,
             reader,
@@ -355,18 +352,6 @@ impl App {
         new_cursor_pos.clamp(0, self.input.chars().count())
     }
 
-    fn update_display(&mut self) {
-        self.history.clear();
-        let f = timeago::Formatter::new();
-        let now = Utc::now().timestamp_millis();
-        for event in &self.events {
-            let d = std::time::Duration::from_millis((now - event.endtime) as u64);
-            let ago = f.convert(d);
-            // TODO clone
-            self.history.push((ago, event.command.clone()));
-        }
-    }
-
     fn toggle_filter(&mut self, event: EventFilter) {
         if self.filters.contains(&event) {
             self.filters.remove(&event);
@@ -394,7 +379,6 @@ impl App {
         terminal: &mut Terminal<CrosstermBackend<File>>,
     ) -> anyhow::Result<Option<Event>> {
         self.collect_new_events();
-        self.update_display();
         terminal.draw(|frame| self.render(frame))?;
 
         loop {
@@ -469,7 +453,6 @@ impl App {
                 self.collect_new_events();
                 if self.events.len() != events_before {
                     self.run_matcher();
-                    self.update_display();
                     terminal.draw(|frame| self.render(frame))?;
                 }
             }
@@ -487,14 +470,20 @@ impl App {
 
         let available_height = history_area.height.saturating_sub(1) as usize;
 
+        let now = Utc::now().timestamp_millis();
+        let timeago_fmt = timeago::Formatter::new();
         let history: Vec<ListItem> = self
             .indexer
-            .first_n(available_height.min(self.history.len()))
+            .first_n(available_height.min(self.events.len()))
             .enumerate()
             .rev()
             .filter_map(|(i, idx)| {
                 // TODO should always be Some(...): skip, report, log otherwise?
-                let (ago, command) = self.history.get(idx)?;
+                let event = self.events.get(idx)?;
+                let ago = timeago_fmt.convert(std::time::Duration::from_millis(
+                    (now - event.endtime) as u64,
+                ));
+                let command = &event.command;
                 let mut spans = Vec::new();
                 spans.push(Span::raw(format!("{ago} -- ")));
                 if let Some(hl_indides) = self.indexer.highlight_indices(idx) {
@@ -524,7 +513,7 @@ impl App {
                         spans.push(Span::raw(text));
                     }
                 } else {
-                    spans.push(Span::raw(command.clone()));
+                    spans.push(Span::raw(command.as_str()));
                 }
 
                 if self.show_score
@@ -546,7 +535,7 @@ impl App {
         frame.render_widget(history_widget, history_area);
 
         let filtered = self.indexer.len().unwrap_or(self.events.len());
-        let status_text = format!("{filtered}/{}", self.history.len());
+        let status_text = format!("{filtered}/{}", self.events.len());
         let status_line = Line::from(vec![Span::raw("  "), Span::raw(status_text)]);
         let filters = format!("[{}]  ", self.active_filters());
         let status_line_chunks = Layout::default()
@@ -589,5 +578,280 @@ impl App {
             )
             .wrap(ratatui::widgets::Wrap { trim: false });
         frame.render_widget(preview, preview_area);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_app(input: &str) -> App {
+        let character_index = input.chars().count();
+        App {
+            input: input.to_string(),
+            character_index,
+            indexer: crate::matcher::FuzzyIndex::identity(),
+            reader: EventReader::new(),
+            events: Vec::new(),
+            selected_index: 0,
+            filters: HashSet::new(),
+            folder: String::new(),
+            session_id: None,
+            show_score: false,
+        }
+    }
+
+    #[test]
+    fn delete_word_basic() {
+        let mut app = make_app("hello world");
+        app.delete_word();
+        assert_eq!(app.input, "hello ");
+        assert_eq!(app.character_index, 6);
+    }
+
+    #[test]
+    fn delete_word_trailing_spaces() {
+        let mut app = make_app("hello   ");
+        app.delete_word();
+        assert_eq!(app.input, "");
+        assert_eq!(app.character_index, 0);
+    }
+
+    #[test]
+    fn delete_word_single_word() {
+        let mut app = make_app("hello");
+        app.delete_word();
+        assert_eq!(app.input, "");
+        assert_eq!(app.character_index, 0);
+    }
+
+    #[test]
+    fn delete_word_at_start_is_noop() {
+        let mut app = make_app("hello");
+        app.character_index = 0;
+        app.delete_word();
+        assert_eq!(app.input, "hello");
+        assert_eq!(app.character_index, 0);
+    }
+
+    #[test]
+    fn delete_word_mid_word() {
+        let mut app = make_app("hello world");
+        app.character_index = 7; // cursor between 'w' and 'o' in "world"
+        app.delete_word();
+        assert_eq!(app.input, "hello orld");
+        assert_eq!(app.character_index, 6);
+    }
+
+    #[test]
+    fn byte_index_ascii() {
+        let app = make_app("hello");
+        assert_eq!(app.byte_index(), 5);
+    }
+
+    #[test]
+    fn byte_index_multibyte() {
+        // "é" is 2 bytes; cursor after it should give byte index 2
+        let mut app = make_app("é");
+        app.character_index = 1;
+        assert_eq!(app.byte_index(), 2);
+    }
+
+    #[test]
+    fn byte_index_at_start() {
+        let mut app = make_app("hello");
+        app.character_index = 0;
+        assert_eq!(app.byte_index(), 0);
+    }
+
+    #[test]
+    fn toggle_filter_adds_and_removes() {
+        let mut app = make_app("");
+        app.toggle_filter(EventFilter::Duplicates);
+        assert!(app.filters.contains(&EventFilter::Duplicates));
+        app.toggle_filter(EventFilter::Duplicates);
+        assert!(!app.filters.contains(&EventFilter::Duplicates));
+    }
+
+    #[test]
+    fn active_filters_empty() {
+        let app = make_app("");
+        assert_eq!(app.active_filters(), "");
+    }
+
+    #[test]
+    fn active_filters_shows_abbreviations() {
+        let mut app = make_app("");
+        app.toggle_filter(EventFilter::Duplicates);
+        app.toggle_filter(EventFilter::ExitCodeSuccess);
+        app.toggle_filter(EventFilter::Folder);
+        app.toggle_filter(EventFilter::SessionId);
+        let filters = app.active_filters();
+        assert!(filters.contains('U'));
+        assert!(filters.contains('E'));
+        assert!(filters.contains('F'));
+        assert!(filters.contains('S'));
+    }
+
+    #[test]
+    fn move_selection_up_increments() {
+        let mut app = make_app("");
+        app.move_selection_up(10);
+        assert_eq!(app.selected_index, 1);
+    }
+
+    #[test]
+    fn move_selection_up_clamps_to_height() {
+        let mut app = make_app("");
+        app.selected_index = 6;
+        app.move_selection_up(8); // max = 8 - 3 = 5
+        assert_eq!(app.selected_index, 5);
+    }
+
+    #[test]
+    fn move_selection_down_decrements() {
+        let mut app = make_app("");
+        app.selected_index = 3;
+        app.move_selection_down();
+        assert_eq!(app.selected_index, 2);
+    }
+
+    #[test]
+    fn move_selection_down_clamps_at_zero() {
+        let mut app = make_app("");
+        app.move_selection_down();
+        assert_eq!(app.selected_index, 0);
+    }
+
+    #[test]
+    fn enter_char_appends_at_end() {
+        let mut app = make_app("hell");
+        app.enter_char('o');
+        assert_eq!(app.input, "hello");
+        assert_eq!(app.character_index, 5);
+    }
+
+    #[test]
+    fn enter_char_inserts_at_start() {
+        let mut app = make_app("ello");
+        app.character_index = 0;
+        app.enter_char('h');
+        assert_eq!(app.input, "hello");
+        assert_eq!(app.character_index, 1);
+    }
+
+    #[test]
+    fn enter_char_inserts_in_middle() {
+        let mut app = make_app("hllo");
+        app.character_index = 1;
+        app.enter_char('e');
+        assert_eq!(app.input, "hello");
+        assert_eq!(app.character_index, 2);
+    }
+
+    #[test]
+    fn enter_char_multibyte() {
+        let mut app = make_app("h");
+        app.enter_char('é');
+        assert_eq!(app.input, "hé");
+        assert_eq!(app.character_index, 2);
+    }
+
+    #[test]
+    fn collect_new_events_drains_channel() {
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        let mut app = make_app("");
+        app.reader = EventReader::new().start(receiver);
+
+        let event = Arc::new(Event {
+            timestamp_millis: 0,
+            command: "git status".to_string(),
+            endtime: 1000,
+            exit_code: 0,
+            folder: "/".to_string(),
+            machine: "m".to_string(),
+            session: "s".to_string(),
+        });
+        sender.send(event).unwrap();
+        drop(sender); // closing the channel lets us wait for the thread to drain it
+        std::thread::sleep(std::time::Duration::from_millis(10));
+
+        app.collect_new_events();
+        assert_eq!(app.events.len(), 1);
+        assert_eq!(app.events[0].command, "git status");
+    }
+
+    #[test]
+    fn move_cursor_left_decrements() {
+        let mut app = make_app("hello");
+        app.move_cursor_left();
+        assert_eq!(app.character_index, 4);
+    }
+
+    #[test]
+    fn move_cursor_left_clamps_at_zero() {
+        let mut app = make_app("hello");
+        app.character_index = 0;
+        app.move_cursor_left();
+        assert_eq!(app.character_index, 0);
+    }
+
+    #[test]
+    fn move_cursor_right_increments() {
+        let mut app = make_app("hello");
+        app.character_index = 0;
+        app.move_cursor_right();
+        assert_eq!(app.character_index, 1);
+    }
+
+    #[test]
+    fn move_cursor_right_clamps_at_end() {
+        let mut app = make_app("hello");
+        app.move_cursor_right();
+        assert_eq!(app.character_index, 5);
+    }
+
+    #[test]
+    fn delete_char_basic() {
+        let mut app = make_app("hello");
+        app.delete_char();
+        assert_eq!(app.input, "hell");
+        assert_eq!(app.character_index, 4);
+    }
+
+    #[test]
+    fn delete_char_at_start_is_noop() {
+        let mut app = make_app("hello");
+        app.character_index = 0;
+        app.delete_char();
+        assert_eq!(app.input, "hello");
+        assert_eq!(app.character_index, 0);
+    }
+
+    #[test]
+    fn delete_char_multibyte() {
+        let mut app = make_app("héllo");
+        app.character_index = 2; // cursor after 'é'
+        app.delete_char();
+        assert_eq!(app.input, "hllo");
+        assert_eq!(app.character_index, 1);
+    }
+
+    #[test]
+    fn event_filter_from_str_roundtrip() {
+        let cases = [
+            ("duplicates", EventFilter::Duplicates),
+            ("session_id", EventFilter::SessionId),
+            ("folder", EventFilter::Folder),
+            ("exit_code_success", EventFilter::ExitCodeSuccess),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(input.parse::<EventFilter>().unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn event_filter_from_str_unknown() {
+        assert!("unknown".parse::<EventFilter>().is_err());
     }
 }
