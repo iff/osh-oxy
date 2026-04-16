@@ -694,11 +694,15 @@ mod tests {
     #[test]
     fn active_filters_shows_abbreviations() {
         let mut app = make_app("");
+        app.toggle_filter(EventFilter::Duplicates);
         app.toggle_filter(EventFilter::ExitCodeSuccess);
         app.toggle_filter(EventFilter::Folder);
+        app.toggle_filter(EventFilter::SessionId);
         let filters = app.active_filters();
+        assert!(filters.contains('U'));
         assert!(filters.contains('E'));
         assert!(filters.contains('F'));
+        assert!(filters.contains('S'));
     }
 
     #[test]
