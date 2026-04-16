@@ -732,6 +732,62 @@ mod tests {
     }
 
     #[test]
+    fn move_cursor_left_decrements() {
+        let mut app = make_app("hello");
+        app.move_cursor_left();
+        assert_eq!(app.character_index, 4);
+    }
+
+    #[test]
+    fn move_cursor_left_clamps_at_zero() {
+        let mut app = make_app("hello");
+        app.character_index = 0;
+        app.move_cursor_left();
+        assert_eq!(app.character_index, 0);
+    }
+
+    #[test]
+    fn move_cursor_right_increments() {
+        let mut app = make_app("hello");
+        app.character_index = 0;
+        app.move_cursor_right();
+        assert_eq!(app.character_index, 1);
+    }
+
+    #[test]
+    fn move_cursor_right_clamps_at_end() {
+        let mut app = make_app("hello");
+        app.move_cursor_right();
+        assert_eq!(app.character_index, 5);
+    }
+
+    #[test]
+    fn delete_char_basic() {
+        let mut app = make_app("hello");
+        app.delete_char();
+        assert_eq!(app.input, "hell");
+        assert_eq!(app.character_index, 4);
+    }
+
+    #[test]
+    fn delete_char_at_start_is_noop() {
+        let mut app = make_app("hello");
+        app.character_index = 0;
+        app.delete_char();
+        assert_eq!(app.input, "hello");
+        assert_eq!(app.character_index, 0);
+    }
+
+    #[test]
+    fn delete_char_multibyte() {
+        let mut app = make_app("héllo");
+        app.character_index = 2; // cursor after 'é'
+        app.delete_char();
+        assert_eq!(app.input, "hllo");
+        assert_eq!(app.character_index, 1);
+    }
+
+    #[test]
     fn event_filter_from_str_roundtrip() {
         let cases = [
             ("duplicates", EventFilter::Duplicates),
