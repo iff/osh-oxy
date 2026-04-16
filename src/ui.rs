@@ -164,9 +164,7 @@ struct App {
     input: String,
     /// position of cursor in the editor area.
     character_index: usize,
-    /// display entries: (time-ago label, command) pairs derived from `events`
-    history: Vec<(String, String)>,
-    /// indices into history sorted according to fuzzer score if we have a query
+    /// indices into events sorted according to fuzzy score if we have a query
     indexer: FuzzyIndex,
     /// reader for collecting events from background thread
     reader: EventReader,
@@ -193,7 +191,6 @@ impl App {
         let character_index = query.len();
         Self {
             input: query,
-            history: Vec::new(),
             indexer: FuzzyIndex::identity(),
             character_index,
             reader,
@@ -355,18 +352,6 @@ impl App {
         new_cursor_pos.clamp(0, self.input.chars().count())
     }
 
-    fn update_display(&mut self) {
-        self.history.clear();
-        let f = timeago::Formatter::new();
-        let now = Utc::now().timestamp_millis();
-        for event in &self.events {
-            let d = std::time::Duration::from_millis((now - event.endtime) as u64);
-            let ago = f.convert(d);
-            // TODO clone
-            self.history.push((ago, event.command.clone()));
-        }
-    }
-
     fn toggle_filter(&mut self, event: EventFilter) {
         if self.filters.contains(&event) {
             self.filters.remove(&event);
@@ -394,7 +379,6 @@ impl App {
         terminal: &mut Terminal<CrosstermBackend<File>>,
     ) -> anyhow::Result<Option<Event>> {
         self.collect_new_events();
-        self.update_display();
         terminal.draw(|frame| self.render(frame))?;
 
         loop {
@@ -469,7 +453,6 @@ impl App {
                 self.collect_new_events();
                 if self.events.len() != events_before {
                     self.run_matcher();
-                    self.update_display();
                     terminal.draw(|frame| self.render(frame))?;
                 }
             }
@@ -487,14 +470,20 @@ impl App {
 
         let available_height = history_area.height.saturating_sub(1) as usize;
 
+        let now = Utc::now().timestamp_millis();
+        let timeago_fmt = timeago::Formatter::new();
         let history: Vec<ListItem> = self
             .indexer
-            .first_n(available_height.min(self.history.len()))
+            .first_n(available_height.min(self.events.len()))
             .enumerate()
             .rev()
             .filter_map(|(i, idx)| {
                 // TODO should always be Some(...): skip, report, log otherwise?
-                let (ago, command) = self.history.get(idx)?;
+                let event = self.events.get(idx)?;
+                let ago = timeago_fmt.convert(std::time::Duration::from_millis(
+                    (now - event.endtime) as u64,
+                ));
+                let command = &event.command;
                 let mut spans = Vec::new();
                 spans.push(Span::raw(format!("{ago} -- ")));
                 if let Some(hl_indides) = self.indexer.highlight_indices(idx) {
@@ -524,7 +513,7 @@ impl App {
                         spans.push(Span::raw(text));
                     }
                 } else {
-                    spans.push(Span::raw(command.clone()));
+                    spans.push(Span::raw(command.as_str()));
                 }
 
                 if self.show_score
@@ -546,7 +535,7 @@ impl App {
         frame.render_widget(history_widget, history_area);
 
         let filtered = self.indexer.len().unwrap_or(self.events.len());
-        let status_text = format!("{filtered}/{}", self.history.len());
+        let status_text = format!("{filtered}/{}", self.events.len());
         let status_line = Line::from(vec![Span::raw("  "), Span::raw(status_text)]);
         let filters = format!("[{}]  ", self.active_filters());
         let status_line_chunks = Layout::default()
@@ -601,7 +590,6 @@ mod tests {
         App {
             input: input.to_string(),
             character_index,
-            history: Vec::new(),
             indexer: crate::matcher::FuzzyIndex::identity(),
             reader: EventReader::new(),
             events: Vec::new(),
