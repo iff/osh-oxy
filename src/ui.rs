@@ -732,6 +732,64 @@ mod tests {
     }
 
     #[test]
+    fn enter_char_appends_at_end() {
+        let mut app = make_app("hell");
+        app.enter_char('o');
+        assert_eq!(app.input, "hello");
+        assert_eq!(app.character_index, 5);
+    }
+
+    #[test]
+    fn enter_char_inserts_at_start() {
+        let mut app = make_app("ello");
+        app.character_index = 0;
+        app.enter_char('h');
+        assert_eq!(app.input, "hello");
+        assert_eq!(app.character_index, 1);
+    }
+
+    #[test]
+    fn enter_char_inserts_in_middle() {
+        let mut app = make_app("hllo");
+        app.character_index = 1;
+        app.enter_char('e');
+        assert_eq!(app.input, "hello");
+        assert_eq!(app.character_index, 2);
+    }
+
+    #[test]
+    fn enter_char_multibyte() {
+        let mut app = make_app("h");
+        app.enter_char('é');
+        assert_eq!(app.input, "hé");
+        assert_eq!(app.character_index, 2);
+    }
+
+    #[test]
+    fn collect_new_events_drains_channel() {
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        let mut app = make_app("");
+        app.reader = EventReader::new().start(receiver);
+
+        let event = Arc::new(Event {
+            timestamp_millis: 0,
+            command: "git status".to_string(),
+            endtime: 1000,
+            exit_code: 0,
+            folder: "/".to_string(),
+            machine: "m".to_string(),
+            session: "s".to_string(),
+        });
+        sender.send(event).unwrap();
+        drop(sender); // closing the channel lets us wait for the thread to drain it
+        std::thread::sleep(std::time::Duration::from_millis(10));
+
+        app.collect_new_events();
+        assert_eq!(app.events.len(), 1);
+        assert_eq!(app.events[0].command, "git status");
+    }
+
+    #[test]
     fn move_cursor_left_decrements() {
         let mut app = make_app("hello");
         app.move_cursor_left();
