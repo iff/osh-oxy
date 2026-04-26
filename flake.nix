@@ -27,7 +27,9 @@
                 (super.rust-bin.stable.latest.minimal.override {
                   extensions = [
                     "clippy"
+                    "rust-analyzer"
                     "rust-docs"
+                    "rust-src"
                   ];
                 })
                 (super.rust-bin.selectLatestNightlyWith (toolchain: toolchain.rustfmt))
@@ -77,7 +79,6 @@
               cargo-deny
               cargo-edit
               cargo-watch
-              rust-analyzer
               zizmor
               pinact
               hyperfine
