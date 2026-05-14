@@ -133,6 +133,10 @@ impl<'a> FilteredView<'a> {
         let indices = indices
             .into_iter()
             .filter(|&i| {
+                #[expect(
+                    clippy::indexing_slicing,
+                    reason = "invariant by construction: i < self.events.len()"
+                )]
                 let event = &events[i];
                 filters.iter().all(|f| match f {
                     EventFilter::Duplicates => true,
@@ -147,6 +151,10 @@ impl<'a> FilteredView<'a> {
     }
 
     fn entries(&self) -> impl Iterator<Item = (usize, &str)> {
+        #[expect(
+            clippy::indexing_slicing,
+            reason = "invariant by construction: i < self.events.len()"
+        )]
         self.indices
             .iter()
             .map(|&i| (i, self.events[i].command.as_str()))
