@@ -3,7 +3,7 @@ use std::{io::Write, path::PathBuf};
 use arbitrary::Arbitrary;
 use serde::{Deserialize, Serialize};
 
-#[allow(deprecated)]
+#[expect(deprecated, reason = "migration to binary format")]
 use crate::formats::json_lines::JsonLineEvent;
 use crate::formats::rmp::BinaryWriter;
 
@@ -41,7 +41,7 @@ impl Arbitrary<'_> for Event {
     }
 }
 
-#[allow(deprecated)]
+#[expect(deprecated, reason = "migration to binary format")]
 impl From<JsonLineEvent> for Event {
     /// Converts a `JsonLineEvent` to the new binary format. The `JsonLineEven` format is deprecated
     /// and this is only used to convert old history files to the binary format.
@@ -116,7 +116,7 @@ mod tests {
         assert_eq!(a.partial_cmp(&a), Some(Ordering::Equal));
     }
 
-    #[allow(deprecated)]
+    #[expect(deprecated, reason = "migration to binary format")]
     #[test]
     fn from_json_line_event() {
         let timestamp = chrono::DateTime::from_timestamp_millis(1_000_000_000_000).unwrap();

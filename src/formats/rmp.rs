@@ -25,8 +25,7 @@ impl<W: Write> BinaryWriter<W> {
         Ok(())
     }
 
-    #[allow(dead_code)]
-    fn flush(&mut self) -> anyhow::Result<()> {
+    pub fn flush(&mut self) -> anyhow::Result<()> {
         self.inner.flush()?;
         Ok(())
     }
@@ -38,16 +37,23 @@ pub fn load_osh_events(data: &[u8]) -> std::io::Result<Vec<Event>> {
     let mut cursor = 0;
 
     while cursor < data.len() {
-        #[allow(clippy::indexing_slicing, clippy::expect_used)]
-        let size_bytes: [u8; 8] = data[cursor..cursor + 8]
+        #[expect(
+            clippy::expect_used,
+            reason = "errors if we can't read exactly 8 bytes"
+        )]
+        let size_bytes: [u8; 8] = data
+            .get(cursor..cursor + 8)
+            .ok_or(std::io::ErrorKind::UnexpectedEof)?
             .try_into()
-            .expect("8 bytes for length encoding");
+            .expect("slice is exactly 8 bytes");
         let event_size = u64::from_le_bytes(size_bytes) as usize;
         cursor += 8;
 
-        #[allow(clippy::indexing_slicing)]
-        let event: Event = decode::from_slice(&data[cursor..cursor + event_size])
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        let event: Event = decode::from_slice(
+            data.get(cursor..cursor + event_size)
+                .ok_or(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?,
+        )
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         events.push(event);
         cursor += event_size;
     }

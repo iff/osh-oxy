@@ -130,7 +130,10 @@ mod parser {
 
     /// Parse a raw token into a Term, extracting any operator prefix/suffix.
     fn parse_term_type(input: &str) -> Term {
-        #[allow(clippy::expect_used)]
+        #[expect(
+            clippy::expect_used,
+            reason = "parse_fuzzy is catch all and will always suceed"
+        )]
         alt((
             parse_inverse_suffix,
             parse_inverse_exact,
@@ -342,7 +345,10 @@ impl FuzzyIndex {
     pub fn first_n(&self, n: usize) -> Either<Copied<Iter<'_, usize>>, Range<usize>> {
         if let Some(indices) = &self.indices {
             let visible_count = n.min(indices.len());
-            #[allow(clippy::indexing_slicing)] // slicing: using min ensures the slice is valid
+            #[expect(
+                clippy::indexing_slicing,
+                reason = "using min ensures the slice is valid"
+            )]
             Either::Left(indices[0..visible_count].iter().copied())
         } else {
             Either::Right(0..n)

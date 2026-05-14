@@ -553,9 +553,9 @@ impl App {
             .direction(Direction::Horizontal)
             .constraints([Constraint::Min(0), Constraint::Length(filters.len() as u16)])
             .split(status_area);
-        #[allow(clippy::indexing_slicing)] // constructed two constraints
+        #[expect(clippy::indexing_slicing, reason = "constructed two constraints")]
         frame.render_widget(status_line, status_line_chunks[0]);
-        #[allow(clippy::indexing_slicing)] // constructed two constraints
+        #[expect(clippy::indexing_slicing, reason = "constructed two constraints")]
         frame.render_widget(filters, status_line_chunks[1]);
 
         let input_line = Line::from(vec![

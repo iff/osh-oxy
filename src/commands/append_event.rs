@@ -35,6 +35,7 @@ pub fn invoke(
         session: session.to_string(),
     }
     .write(&mut writer)?;
+    writer.flush()?;
 
     Ok(())
 }

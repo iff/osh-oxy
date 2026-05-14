@@ -25,7 +25,7 @@ pub mod ui;
 
 /// memory map `file`
 pub fn mmap(file: &File) -> &'_ [u8] {
-    #[allow(clippy::unwrap_used)]
+    #[expect(clippy::unwrap_used, reason = "panic for now if we dont get metadata")]
     let len = file.metadata().unwrap().len();
     unsafe {
         let ptr = libc::mmap(
