@@ -218,7 +218,7 @@ impl App {
         // sorting
         let matcher = FuzzyEngine::new(self.input.clone());
         // TODO filtering should also work with an empty query
-        let scores: (Vec<i64>, Vec<Vec<usize>>) = self
+        let mut scores: (Vec<i64>, Vec<Vec<usize>>) = self
             .events
             .par_iter()
             .map(|event| {
@@ -268,7 +268,18 @@ impl App {
         };
 
         scored_indices.sort_by_key(|(_, score)| std::cmp::Reverse(*score));
-        self.indexer = FuzzyIndex::new(scored_indices, scores.1);
+        let matches = scored_indices
+            .into_iter()
+            .map(|(event_idx, score)| {
+                let highlights = scores
+                    .1
+                    .get_mut(event_idx)
+                    .map(std::mem::take)
+                    .unwrap_or_default();
+                (event_idx, score, highlights)
+            })
+            .collect();
+        self.indexer = FuzzyIndex::new(matches);
         // TODO overwrite (or max)?
         self.selected_index = 0;
     }
@@ -486,7 +497,7 @@ impl App {
                 let command = &event.command;
                 let mut spans = Vec::new();
                 spans.push(Span::raw(format!("{ago} -- ")));
-                if let Some(hl_indides) = self.indexer.highlight_indices(idx) {
+                if let Some(hl_indides) = self.indexer.highlight_indices(i) {
                     let mut last_index = 0;
 
                     for &char_index in hl_indides {
