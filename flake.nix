@@ -49,7 +49,10 @@
             lockFile = ./Cargo.lock;
           };
 
-          nativeBuildInputs = [ pkgs.pkg-config ];
+          nativeBuildInputs = [
+            pkgs.pkg-config
+            pkgs.rustToolchain
+          ];
 
           meta = {
             description = "fuzzy shell history search";
