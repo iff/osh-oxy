@@ -3,6 +3,7 @@ use std::{iter::Copied, ops::Range, slice::Iter};
 use fuzzy_matcher::{FuzzyMatcher, skim::SkimMatcherV2};
 use itertools::Either;
 use parser::{OrGroup, ParsedQuery, Term, TermType};
+use rayon::prelude::*;
 
 const BYTES_1M: usize = 1024 * 1024 * 1024;
 
@@ -268,6 +269,21 @@ impl FuzzyEngine {
             .find_map(|term| self.match_term(line, term))
     }
 
+    /// list of entries to find self.parsed_query as (index, command) where we actually match on
+    /// command
+    pub fn match_all(&self, entries: &[(usize, &str)]) -> Vec<Match> {
+        entries
+            .par_iter()
+            .filter_map(|&(original_idx, line)| {
+                let (score, highlights) = self.match_line(line);
+                if !self.parsed_query.groups.is_empty() && score == 0 {
+                    return None;
+                }
+                Some((original_idx, score, highlights))
+            })
+            .collect()
+    }
+
     pub fn match_line(&self, line: &str) -> (i64, Vec<usize>) {
         if self.parsed_query.groups.is_empty() {
             return (0, vec![]);
@@ -294,6 +310,27 @@ impl FuzzyEngine {
         all_indices.dedup();
 
         (total_score, all_indices)
+    }
+}
+
+/// index, score, highlight indices
+pub type Match = (usize, i64, Vec<usize>);
+
+impl From<Vec<Match>> for FuzzyIndex {
+    fn from(results: Vec<Match>) -> Self {
+        let mut indices = Vec::with_capacity(results.len());
+        let mut scores = Vec::with_capacity(results.len());
+        let mut highlight_indices = Vec::with_capacity(results.len());
+        for (idx, score, highlights) in results {
+            indices.push(idx);
+            scores.push(score);
+            highlight_indices.push(highlights);
+        }
+        Self {
+            indices: Some(indices),
+            scores: Some(scores),
+            highlight_indices: Some(highlight_indices),
+        }
     }
 }
 
