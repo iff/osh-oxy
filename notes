@@ -1,15 +1,16 @@
+- replace fuzzy-matcher with frizbee (https://github.com/saghen/frizbee)?
 r reimplement basics we need (tui with ratatui and fuzzy-matcher as lib) to enable reload/filters
-  - refactor index and selection handling
-  x fuzzer in owm module
   - hardcoded offsets (height...)
-  - cache filter views?
-  x combine filters?
-  x highlight matches via indices returned from fuzzy indices
   - not sure about event loop and interaction with matcher/reader
   - cancel running matchers if we type
+  x refactor index and selection handling
+  x fuzzer in owm module
+  x cache filter views?
+  x combine filters?
+  x highlight matches via indices returned from fuzzy indices
+  x better duplication filtering
 - add a mechanism to filer some commands permanently
   - or add a command that lets the user interactively prune history files?
-- better duplication filtering
 - understand Rust pdqsort in detail and write better benchs
     - also look into glidesort: https://github.com/orlp/glidesort
 x enable ^'.. chars in query 
