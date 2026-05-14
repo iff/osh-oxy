@@ -9,8 +9,12 @@ use crate::{
 };
 
 /// convert from json lins to rmp
+///
+/// # Errors
+///
+/// Returns an `Err` if any operation in the conversion process fails.
 pub fn invoke() -> anyhow::Result<()> {
-    for path in osh_files(Kind::JsonLines)? {
+    for path in osh_files(&Kind::JsonLines)? {
         let file = File::open(&path)?;
         let data = mmap(&file);
         let events = json_lines::load_osh_events(data)

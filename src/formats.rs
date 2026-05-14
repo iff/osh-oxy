@@ -10,6 +10,7 @@ pub enum Kind {
 
 impl Kind {
     /// get file extension for a format kind
+    #[must_use]
     pub fn extension(&self) -> String {
         match self {
             Kind::JsonLines => "osh".to_string(),

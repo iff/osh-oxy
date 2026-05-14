@@ -2,6 +2,9 @@ use anyhow::Context;
 
 use crate::{event::Event, formats::rmp::BinaryWriter};
 
+/// # Errors
+///
+/// Returns an `Err` if no osh file can be created or exists and if writing to it fails.
 pub fn invoke(
     starttime: i64,
     command: &str,
@@ -11,7 +14,7 @@ pub fn invoke(
     machine: &str,
     session: &str,
 ) -> anyhow::Result<()> {
-    if command.starts_with(" ") {
+    if command.starts_with(' ') {
         return Ok(());
     }
 

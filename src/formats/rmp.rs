@@ -17,6 +17,13 @@ impl<W: Write> BinaryWriter<W> {
         BinaryWriter { inner: writer }
     }
 
+    /// # Errors
+    ///
+    /// Will return an `Err` if serialisation or writing to file fails.
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "contract shoul be that the event is consumed by write"
+    )]
     pub fn write(&mut self, event: Event) -> anyhow::Result<()> {
         let data = to_vec(&event)?;
         let mut buf = (data.len() as u64).to_le_bytes().to_vec();
@@ -25,6 +32,9 @@ impl<W: Write> BinaryWriter<W> {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Will return an `Err` if flushing fails.
     pub fn flush(&mut self) -> anyhow::Result<()> {
         self.inner.flush()?;
         Ok(())
@@ -32,11 +42,16 @@ impl<W: Write> BinaryWriter<W> {
 }
 
 /// parse and collect all [`Event`]s in the slice
+///
+/// # Errors
+///
+/// Will return an `Err` decoding fails (truncation or invalid format).
 pub fn load_osh_events(data: &[u8]) -> std::io::Result<Vec<Event>> {
     let mut events = Vec::new();
     let mut cursor = 0;
 
     while cursor < data.len() {
+        #[expect(clippy::missing_panics_doc, reason = "infallible")]
         #[expect(
             clippy::expect_used,
             reason = "errors if we can't read exactly 8 bytes"
@@ -46,6 +61,10 @@ pub fn load_osh_events(data: &[u8]) -> std::io::Result<Vec<Event>> {
             .ok_or(std::io::ErrorKind::UnexpectedEof)?
             .try_into()
             .expect("slice is exactly 8 bytes");
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "assuming above write was used"
+        )]
         let event_size = u64::from_le_bytes(size_bytes) as usize;
         cursor += 8;
 

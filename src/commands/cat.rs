@@ -5,13 +5,16 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::load_sorted;
 
+/// # Errors
+///
+/// Returns an `Err` if loading or writing to stdout fails.
 pub fn invoke() -> anyhow::Result<()> {
     let f = timeago::Formatter::new();
     let now = Utc::now().timestamp_millis();
     let formatted: String = load_sorted()?
         .par_iter()
         .map(|item| {
-            let d = std::time::Duration::from_millis((now - item.endtime) as u64);
+            let d = std::time::Duration::from_millis((now - item.endtime).cast_unsigned());
             format!("{} --- {}\n", f.convert(d), item.command)
         })
         .collect();

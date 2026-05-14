@@ -45,6 +45,7 @@ impl EventReader {
         }
     }
 
+    #[must_use]
     fn start(self, receiver: Receiver<Arc<Event>>) -> Self {
         let buffer = Arc::clone(&self.buffer);
         thread::spawn(move || {
@@ -166,6 +167,7 @@ pub struct Tui;
 impl Tui {
     /// Set up the terminal and run the TUI. `receiver` is fed [`Event`]s by the caller.
     /// Returns the selected event, if any.
+    #[must_use]
     pub fn start(
         receiver: Receiver<Arc<Event>>,
         query: &str,
@@ -215,7 +217,7 @@ struct App {
     /// current value of the input box
     input: String,
     /// position of cursor in the editor area.
-    character_index: usize,
+    character_index: u16,
     /// indices into events sorted according to fuzzy score if we have a query
     indexer: Option<FuzzyIndex>,
     /// reader for collecting events from background thread
@@ -242,7 +244,8 @@ impl App {
         filters: HashSet<EventFilter>,
         show_score: bool,
     ) -> Self {
-        let character_index = query.len();
+        // TODO we should truncate (or handle) query inputs that are wider than the screen?
+        let character_index = u16::try_from(query.len()).unwrap_or(u16::MAX);
         Self {
             input: query,
             indexer: None,
@@ -285,10 +288,10 @@ impl App {
                 .collect();
             self.indexer = Some(FuzzyIndex::from(matches));
         } else {
-            let matcher = FuzzyEngine::new(self.input.clone());
-            let mut matches = matcher.match_all(&entries);
-            matches.sort_unstable_by_key(|(_, score, _)| std::cmp::Reverse(*score));
-            self.indexer = Some(FuzzyIndex::from(matches));
+            let matcher = FuzzyEngine::new(&self.input);
+            let mut result = matcher.match_all(&entries);
+            result.sort_unstable_by_key(|(_, score, _)| std::cmp::Reverse(*score));
+            self.indexer = Some(FuzzyIndex::from(result));
         }
         self.selected_index = 0;
     }
@@ -315,7 +318,7 @@ impl App {
         self.input
             .char_indices()
             .map(|(i, _)| i)
-            .nth(self.character_index)
+            .nth(self.character_index as usize)
             .unwrap_or(self.input.len())
     }
 
@@ -325,8 +328,9 @@ impl App {
             // String::remove works on bytes, not chars; reconstruct around the character instead.
             let current_index = self.character_index;
             let from_left_to_current_index = current_index - 1;
-            let before_char_to_delete = self.input.chars().take(from_left_to_current_index);
-            let after_char_to_delete = self.input.chars().skip(current_index);
+            let before_char_to_delete =
+                self.input.chars().take(from_left_to_current_index as usize);
+            let after_char_to_delete = self.input.chars().skip(current_index as usize);
             self.input = before_char_to_delete.chain(after_char_to_delete).collect();
             self.move_cursor_left();
         }
@@ -345,16 +349,16 @@ impl App {
 
         // Trim trailing whitespace, then find last whitespace (word boundary)
         let trimmed = before_cursor.trim_end_matches(|c: char| c.is_whitespace());
-        let word_start_byte = trimmed
-            .rfind(char::is_whitespace)
-            .map(|i| i + trimmed[i..].chars().next().map_or(0, |c| c.len_utf8()))
-            .unwrap_or(0);
+        let word_start_byte = trimmed.rfind(char::is_whitespace).map_or(0, |i| {
+            i + trimmed[i..].chars().next().map_or(0, char::len_utf8)
+        });
 
         let word_start_char = self.input[..word_start_byte].chars().count();
         let before_word = self.input.chars().take(word_start_char);
-        let after_cursor = self.input.chars().skip(self.character_index);
+        let after_cursor = self.input.chars().skip(self.character_index as usize);
         self.input = before_word.chain(after_cursor).collect();
-        self.character_index = self.clamp_cursor(word_start_char);
+        self.character_index =
+            self.clamp_cursor(u16::try_from(word_start_char).unwrap_or(u16::MAX));
 
         self.run_matcher();
     }
@@ -368,8 +372,11 @@ impl App {
         self.selected_index = self.selected_index.saturating_sub(1);
     }
 
-    fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
-        new_cursor_pos.clamp(0, self.input.chars().count())
+    fn clamp_cursor(&self, new_cursor_pos: u16) -> u16 {
+        new_cursor_pos.clamp(
+            0,
+            u16::try_from(self.input.chars().count()).unwrap_or(u16::MAX),
+        )
     }
 
     fn toggle_filter(&mut self, event: EventFilter) {
@@ -410,9 +417,7 @@ impl App {
                     event::Event::Key(key) => {
                         match (key.code, key.modifiers) {
                             (KeyCode::Enter, _) => {
-                                let indexer = if let Some(indexer) = self.indexer {
-                                    indexer
-                                } else {
+                                let Some(indexer) = self.indexer else {
                                     return Ok(None);
                                 };
                                 let idx = indexer.get(self.selected_index).ok_or(anyhow!(
@@ -425,9 +430,11 @@ impl App {
                                 }
                                 return Ok(None);
                             }
-                            (KeyCode::Char(to_insert), KeyModifiers::NONE)
-                            | (KeyCode::Char(to_insert), KeyModifiers::SHIFT) => {
-                                self.enter_char(to_insert)
+                            (
+                                KeyCode::Char(to_insert),
+                                KeyModifiers::NONE | KeyModifiers::SHIFT,
+                            ) => {
+                                self.enter_char(to_insert);
                             }
                             (KeyCode::Char('u'), KeyModifiers::CONTROL) => {
                                 self.toggle_filter(EventFilter::Duplicates);
@@ -462,8 +469,7 @@ impl App {
                             }
                             (KeyCode::Down, _) => self.move_selection_down(),
                             (KeyCode::Esc, _)
-                            | (KeyCode::Char('c'), KeyModifiers::CONTROL)
-                            | (KeyCode::Char('d'), KeyModifiers::CONTROL) => {
+                            | (KeyCode::Char('c' | 'd'), KeyModifiers::CONTROL) => {
                                 return Ok(None);
                             }
                             _ => {}
@@ -534,7 +540,7 @@ impl App {
                 if self.show_score
                     && let Some(score) = indexer.matcher_score(i)
                 {
-                    spans.push(Span::raw(format!(" ({})", score)));
+                    spans.push(Span::raw(format!(" ({score})")));
                 }
 
                 let item = ListItem::new(Line::from(spans));
@@ -562,7 +568,7 @@ impl App {
         let timeago_fmt = timeago::Formatter::new();
         let timeago_fn = |event: &Event| {
             timeago_fmt.convert(std::time::Duration::from_millis(
-                (now - event.endtime) as u64,
+                (now - event.endtime).cast_unsigned(),
             ))
         };
         let history: Vec<ListItem> = if let Some(indexer) = &self.indexer {
@@ -584,7 +590,10 @@ impl App {
         let filters = format!("[{}]  ", self.active_filters());
         let status_line_chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Min(0), Constraint::Length(filters.len() as u16)])
+            .constraints([
+                Constraint::Min(0),
+                Constraint::Length(u16::try_from(filters.len()).unwrap_or(10)), // TODO default?
+            ])
             .split(status_area);
         #[expect(clippy::indexing_slicing, reason = "constructed two constraints")]
         frame.render_widget(status_line, status_line_chunks[0]);
@@ -601,7 +610,7 @@ impl App {
         let input = Paragraph::new(input_line).block(Block::default());
         frame.render_widget(input, input_area);
         frame.set_cursor_position(Position::new(
-            input_area.x + self.character_index as u16 + 2,
+            input_area.x + self.character_index + 2,
             input_area.y,
         ));
 
@@ -632,7 +641,7 @@ mod tests {
     use super::*;
 
     fn make_app(input: &str) -> App {
-        let character_index = input.chars().count();
+        let character_index = u16::try_from(input.chars().count()).unwrap();
         App {
             input: input.to_string(),
             character_index,

@@ -47,7 +47,8 @@ impl From<JsonLineEvent> for Event {
     /// and this is only used to convert old history files to the binary format.
     fn from(event: JsonLineEvent) -> Self {
         let timestamp = event.timestamp.timestamp_millis();
-        let endtime = timestamp + (event.duration * 1000.) as i64;
+        #[expect(clippy::cast_possible_truncation, reason = "duration is small")]
+        let endtime = timestamp + (event.duration * 1000.).round() as i64;
         Self {
             timestamp_millis: timestamp,
             command: event.command,
@@ -75,6 +76,9 @@ impl Ord for Event {
 }
 
 impl Event {
+    /// # Errors
+    ///
+    /// Will return an `Err` if serialisation or writing fails.
     pub fn write<W: Write>(self, writer: &mut BinaryWriter<W>) -> anyhow::Result<()> {
         writer.write(self)
     }

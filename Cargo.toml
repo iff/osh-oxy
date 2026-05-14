@@ -33,12 +33,10 @@ panic = "abort"
 # debug = true
 
 [lints.clippy]
-unwrap_used = "warn"
-expect_used = "warn"
-indexing_slicing = "warn"
-
-allow_attributes = "deny"
-allow_attributes_without_reason = "deny"
+pedantic = { level = "warn", priority = -1 }
+# restriction = { level = "warn", priority = -1 }
+# nursery = { level = "warn", priority = -1 }
+blanket_clippy_restriction_lints = "allow"
 
 [[bench]]
 name = "load"

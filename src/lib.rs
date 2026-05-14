@@ -24,13 +24,19 @@ pub mod matcher;
 pub mod ui;
 
 /// memory map `file`
+/// # Panics
+///
+/// Will panic if statx or memory mapping fails, and if we can't set the `MADV_SEQUENTIAL` hint.
+#[must_use]
 pub fn mmap(file: &File) -> &'_ [u8] {
-    #[expect(clippy::unwrap_used, reason = "panic for now if we dont get metadata")]
+    #[expect(clippy::unwrap_used, reason = "panic if statx fails")]
     let len = file.metadata().unwrap().len();
+    #[expect(clippy::expect_used, reason = "")]
+    let len = libc::size_t::try_from(len).expect("casting file size to size_t is not truncating");
     unsafe {
         let ptr = libc::mmap(
             std::ptr::null_mut(),
-            len as libc::size_t,
+            len,
             libc::PROT_READ,
             libc::MAP_SHARED,
             file.as_raw_fd(),
@@ -39,10 +45,9 @@ pub fn mmap(file: &File) -> &'_ [u8] {
         if ptr == libc::MAP_FAILED {
             panic!("{:?}", std::io::Error::last_os_error());
         } else {
-            if libc::madvise(ptr, len as libc::size_t, libc::MADV_SEQUENTIAL) != 0 {
-                panic!("{:?}", std::io::Error::last_os_error())
-            }
-            std::slice::from_raw_parts(ptr as *const u8, len as usize)
+            let r = libc::madvise(ptr, len, libc::MADV_SEQUENTIAL);
+            assert!(r == 0, "{:?}", std::io::Error::last_os_error());
+            std::slice::from_raw_parts(ptr as *const u8, len)
         }
     }
 }
@@ -66,14 +71,22 @@ fn discover_files(root: &Path, kind: &formats::Kind) -> anyhow::Result<HashSet<P
 }
 
 /// discover all parsable osh files under `~/.osh` for a specific format
-pub fn osh_files(kind: formats::Kind) -> anyhow::Result<HashSet<PathBuf>> {
+///
+/// # Errors
+///
+/// Will return an `Err` if `home_dir()` discovery fails.
+pub fn osh_files(kind: &formats::Kind) -> anyhow::Result<HashSet<PathBuf>> {
     let home_dir = home::home_dir().ok_or(anyhow!("no home directory"))?;
-    discover_files(&home_dir.join(".osh"), &kind)
+    discover_files(&home_dir.join(".osh"), kind)
 }
 
 /// load all binary osh files in `~/.osh` and return a merged and sorted vector of all events
+///
+/// # Errors
+///
+/// Will return an `Err` if collecting, memory mapping and parsing of osh files fails.
 pub fn load_sorted() -> anyhow::Result<Vec<Event>> {
-    let oshs = osh_files(Kind::Rmp)?;
+    let oshs = osh_files(&Kind::Rmp)?;
     let osh_files: Vec<File> = oshs
         .into_iter()
         .map(File::open)

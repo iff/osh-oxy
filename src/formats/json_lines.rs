@@ -1,6 +1,7 @@
 //! Deprecated JSON-per-line format with a header. Only used to migrate old `.osh` files to the
 //! current binary format.
 #![expect(deprecated, reason = "migration to binary format")]
+#![expect(warnings, reason = "deprecated")]
 
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};

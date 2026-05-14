@@ -13,7 +13,7 @@ fn benchmark_load_rmp(c: &mut Criterion) {
     let mut group = c.benchmark_group("load_osh_files");
     group.measurement_time(Duration::from_secs_f64(16.0));
 
-    let oshs = osh_files(Kind::Rmp).expect("osh files should load");
+    let oshs = osh_files(&Kind::Rmp).expect("osh files should load");
     let osh_files: Vec<File> = oshs
         .iter()
         .map(|o| File::open(o).expect("open file"))

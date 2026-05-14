@@ -5,13 +5,17 @@ use crate::{
     ui::{EventFilter, Tui},
 };
 
+/// # Panics
+///
+/// Panics if loading events or sending events through the channel fails.
+#[expect(clippy::implicit_hasher, reason = "just used in the CLI")]
 pub fn invoke(
     query: &str,
     folder: &str,
     session_id: Option<String>,
     filters: HashSet<EventFilter>,
     show_score: bool,
-) -> anyhow::Result<()> {
+) {
     let (tx_item, receiver) = crossbeam_channel::unbounded();
     thread::spawn(|| {
         // TODO not sure if we want to sort already?
@@ -32,5 +36,4 @@ pub fn invoke(
     if let Some(event) = Tui::start(receiver, query, folder, session_id, filters, show_score) {
         println!("{}", event.command);
     }
-    Ok(())
 }

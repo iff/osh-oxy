@@ -70,7 +70,7 @@ fn main() -> anyhow::Result<()> {
             show_score,
         } => {
             let filters = HashSet::from_iter(filter);
-            commands::search::invoke(&query, &folder, session_id, filters, show_score)?
+            commands::search::invoke(&query, &folder, session_id, filters, show_score);
         }
     }
 
