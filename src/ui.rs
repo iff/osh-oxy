@@ -1,6 +1,6 @@
 //! Ratatui-based TUI. Entry point is [`Tui::start`].
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fmt::Display,
     fs::File,
     io::Write,
@@ -26,11 +26,10 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, List, ListItem, Paragraph},
 };
-use rayon::prelude::*;
 
 use crate::{
     event::Event,
-    matcher::{FuzzyEngine, FuzzyIndex},
+    matcher::{FuzzyEngine, FuzzyIndex, Match},
 };
 
 struct EventReader {
@@ -109,6 +108,59 @@ impl FromStr for EventFilter {
     }
 }
 
+/// View after filtering Events
+struct FilteredView<'a> {
+    events: &'a [Arc<Event>],
+    indices: Vec<usize>,
+}
+
+impl<'a> FilteredView<'a> {
+    fn build(
+        events: &'a [Arc<Event>],
+        filters: &HashSet<EventFilter>,
+        folder: &str,
+        session_id: Option<&str>,
+        dedup_map: &HashMap<String, usize>,
+    ) -> Self {
+        let indices = if filters.contains(&EventFilter::Duplicates) {
+            let mut dedup_indices: Vec<usize> = dedup_map.values().copied().collect();
+            dedup_indices.sort_unstable();
+            dedup_indices
+        } else {
+            (0..events.len()).collect()
+        };
+
+        let indices = indices
+            .into_iter()
+            .filter(|&i| {
+                #[expect(
+                    clippy::indexing_slicing,
+                    reason = "invariant by construction: i < self.events.len()"
+                )]
+                let event = &events[i];
+                filters.iter().all(|f| match f {
+                    EventFilter::Duplicates => true,
+                    EventFilter::SessionId => session_id.is_none_or(|sid| event.session == sid),
+                    EventFilter::Folder => event.folder == folder,
+                    EventFilter::ExitCodeSuccess => event.exit_code == 0,
+                })
+            })
+            .collect();
+
+        Self { events, indices }
+    }
+
+    fn entries(&self) -> impl Iterator<Item = (usize, &str)> {
+        #[expect(
+            clippy::indexing_slicing,
+            reason = "invariant by construction: i < self.events.len()"
+        )]
+        self.indices
+            .iter()
+            .map(|&i| (i, self.events[i].command.as_str()))
+    }
+}
+
 pub struct Tui;
 
 impl Tui {
@@ -177,6 +229,8 @@ struct App {
     folder: String,
     session_id: Option<String>,
     show_score: bool,
+    /// deduplicated list of entries (see [`EventFilter::Duplicates`])
+    dedup_map: HashMap<String, usize>,
 }
 
 impl App {
@@ -200,87 +254,42 @@ impl App {
             folder,
             session_id,
             show_score,
+            dedup_map: HashMap::new(),
         }
     }
 
     fn collect_new_events(&mut self) {
         let mut new_events = self.reader.take();
+        let base = self.events.len();
+        for (i, e) in new_events.iter().enumerate() {
+            self.dedup_map.entry(e.command.clone()).or_insert(base + i);
+        }
         self.events.append(&mut new_events);
     }
 
     fn run_matcher(&mut self) {
+        let filtered = FilteredView::build(
+            &self.events,
+            &self.filters,
+            &self.folder,
+            self.session_id.as_deref(),
+            &self.dedup_map,
+        );
+        let entries: Vec<(usize, &str)> = filtered.entries().collect();
+
         if self.input.is_empty() {
-            self.indexer = FuzzyIndex::identity();
-            return;
-        }
-
-        // TODO matcher should go into its own module and accumulate results into a struct before
-        // sorting
-        let matcher = FuzzyEngine::new(self.input.clone());
-        // TODO filtering should also work with an empty query
-        let mut scores: (Vec<i64>, Vec<Vec<usize>>) = self
-            .events
-            .par_iter()
-            .map(|event| {
-                let passes_filters = self.filters.iter().all(|filter| {
-                    match filter {
-                        // handle later or maybe keeping those in memory as well
-                        EventFilter::Duplicates => true,
-                        EventFilter::SessionId => self
-                            .session_id
-                            .as_ref()
-                            .is_none_or(|sid| event.session == *sid),
-                        EventFilter::Folder => event.folder == self.folder,
-                        EventFilter::ExitCodeSuccess => event.exit_code == 0,
-                    }
-                });
-
-                if passes_filters {
-                    matcher.match_line(&event.command)
-                } else {
-                    (0, vec![])
-                }
-            })
-            .collect();
-
-        let mut scored_indices = if self.filters.contains(&EventFilter::Duplicates) {
-            // TODO not so sure, maybe find a better approach here
-            let mut seen = HashSet::new();
-            scores
-                .0
-                .into_iter()
-                .enumerate()
-                .filter(|(idx, score)| {
-                    if let Some(event) = &self.events.get(*idx) {
-                        *score > 0 && seen.insert(&event.command)
-                    } else {
-                        false
-                    }
-                })
-                .collect::<Vec<(usize, i64)>>()
+            // pass through (no score, no highlights)
+            let matches: Vec<Match> = entries
+                .iter()
+                .map(|&(idx, _)| (idx, 0i64, vec![]))
+                .collect();
+            self.indexer = FuzzyIndex::from(matches);
         } else {
-            scores
-                .0
-                .into_par_iter()
-                .enumerate()
-                .filter(|(_, score)| *score > 0)
-                .collect::<Vec<(usize, i64)>>()
-        };
-
-        scored_indices.sort_by_key(|(_, score)| std::cmp::Reverse(*score));
-        let matches = scored_indices
-            .into_iter()
-            .map(|(event_idx, score)| {
-                let highlights = scores
-                    .1
-                    .get_mut(event_idx)
-                    .map(std::mem::take)
-                    .unwrap_or_default();
-                (event_idx, score, highlights)
-            })
-            .collect();
-        self.indexer = FuzzyIndex::new(matches);
-        // TODO overwrite (or max)?
+            let matcher = FuzzyEngine::new(self.input.clone());
+            let mut matches = matcher.match_all(&entries);
+            matches.sort_unstable_by_key(|(_, score, _)| std::cmp::Reverse(*score));
+            self.indexer = FuzzyIndex::from(matches);
+        }
         self.selected_index = 0;
     }
 
@@ -609,6 +618,7 @@ mod tests {
             folder: String::new(),
             session_id: None,
             show_score: false,
+            dedup_map: HashMap::new(),
         }
     }
 
