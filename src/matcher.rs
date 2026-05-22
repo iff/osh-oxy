@@ -327,32 +327,23 @@ impl From<Vec<Match>> for FuzzyIndex {
             highlight_indices.push(highlights);
         }
         Self {
-            indices: Some(indices),
-            scores: Some(scores),
-            highlight_indices: Some(highlight_indices),
+            indices: indices,
+            scores: scores,
+            highlight_indices: highlight_indices,
         }
     }
 }
 
 pub struct FuzzyIndex {
     /// indices into [`App.history`]
-    indices: Option<Vec<usize>>,
+    indices: Vec<usize>,
     /// scores parallel to indices
-    scores: Option<Vec<i64>>,
+    scores: Vec<i64>,
     /// highlight char indices, parallel to indices (match-rank indexed)
-    highlight_indices: Option<Vec<Vec<usize>>>,
+    highlight_indices: Vec<Vec<usize>>,
 }
 
 impl FuzzyIndex {
-    /// creates an identity mapping
-    pub fn identity() -> Self {
-        Self {
-            indices: None,
-            scores: None,
-            highlight_indices: None,
-        }
-    }
-
     pub fn new(matches: Vec<(usize, i64, Vec<usize>)>) -> Self {
         let mut indices = Vec::with_capacity(matches.len());
         let mut scores = Vec::with_capacity(matches.len());
@@ -363,93 +354,48 @@ impl FuzzyIndex {
             highlight_indices.push(highlights);
         }
         Self {
-            indices: Some(indices),
-            scores: Some(scores),
-            highlight_indices: Some(highlight_indices),
+            indices: indices,
+            scores: scores,
+            highlight_indices: highlight_indices,
         }
     }
 
-    /// number of matches or None (if all)
-    pub fn len(&self) -> Option<usize> {
-        self.indices.as_ref().map(|ind| ind.len())
+    pub fn len(&self) -> usize {
+        self.indices.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.len().is_none()
+        self.indices.is_empty()
     }
 
     /// gets the first n indices
     pub fn first_n(&self, n: usize) -> Either<Copied<Iter<'_, usize>>, Range<usize>> {
-        if let Some(indices) = &self.indices {
-            let visible_count = n.min(indices.len());
-            #[expect(
-                clippy::indexing_slicing,
-                reason = "using min ensures the slice is valid"
-            )]
-            Either::Left(indices[0..visible_count].iter().copied())
-        } else {
-            Either::Right(0..n)
-        }
+        let visible_count = n.min(self.indices.len());
+        #[expect(
+            clippy::indexing_slicing,
+            reason = "using min ensures the slice is valid"
+        )]
+        Either::Left(self.indices[0..visible_count].iter().copied())
     }
 
     /// get the i-th index
     pub fn get(&self, index: usize) -> Option<usize> {
-        if let Some(indices) = &self.indices {
-            indices.get(index).copied()
-        } else {
-            Some(index)
-        }
+        self.indices.get(index).copied()
     }
 
     pub fn matcher_score(&self, index: usize) -> Option<i64> {
-        if let Some(scores) = &self.scores {
-            scores.get(index).copied()
-        } else {
-            None
-        }
+        self.scores.get(index).copied()
     }
 
     /// get the highlight indices
     pub fn highlight_indices(&self, index: usize) -> Option<&Vec<usize>> {
-        if let Some(indices) = &self.highlight_indices {
-            indices.get(index)
-        } else {
-            None
-        }
+        self.highlight_indices.get(index)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn fuzzy_index_identity_get() {
-        let index = FuzzyIndex::identity();
-        assert_eq!(index.get(0), Some(0));
-        assert_eq!(index.get(42), Some(42));
-    }
-
-    #[test]
-    fn fuzzy_index_identity_len_and_empty() {
-        let index = FuzzyIndex::identity();
-        assert_eq!(index.len(), None);
-        assert!(index.is_empty());
-    }
-
-    #[test]
-    fn fuzzy_index_identity_first_n() {
-        let index = FuzzyIndex::identity();
-        let result: Vec<usize> = index.first_n(3).collect();
-        assert_eq!(result, vec![0, 1, 2]);
-    }
-
-    #[test]
-    fn fuzzy_index_identity_no_highlights_or_scores() {
-        let index = FuzzyIndex::identity();
-        assert_eq!(index.highlight_indices(0), None);
-        assert_eq!(index.matcher_score(0), None);
-    }
 
     #[test]
     fn fuzzy_index_filtered_get() {
@@ -462,7 +408,7 @@ mod tests {
     #[test]
     fn fuzzy_index_filtered_len() {
         let index = FuzzyIndex::new(vec![(5, 100, vec![]), (2, 50, vec![])]);
-        assert_eq!(index.len(), Some(2));
+        assert_eq!(index.len(), 2);
         assert!(!index.is_empty());
     }
 

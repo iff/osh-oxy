@@ -217,7 +217,7 @@ struct App {
     /// position of cursor in the editor area.
     character_index: usize,
     /// indices into events sorted according to fuzzy score if we have a query
-    indexer: FuzzyIndex,
+    indexer: Option<FuzzyIndex>,
     /// reader for collecting events from background thread
     reader: EventReader,
     /// accumulated events pool for filtering and matching
@@ -245,7 +245,7 @@ impl App {
         let character_index = query.len();
         Self {
             input: query,
-            indexer: FuzzyIndex::identity(),
+            indexer: None,
             character_index,
             reader,
             events: Vec::new(),
@@ -283,12 +283,12 @@ impl App {
                 .iter()
                 .map(|&(idx, _)| (idx, 0i64, vec![]))
                 .collect();
-            self.indexer = FuzzyIndex::from(matches);
+            self.indexer = Some(FuzzyIndex::from(matches));
         } else {
             let matcher = FuzzyEngine::new(self.input.clone());
             let mut matches = matcher.match_all(&entries);
             matches.sort_unstable_by_key(|(_, score, _)| std::cmp::Reverse(*score));
-            self.indexer = FuzzyIndex::from(matches);
+            self.indexer = Some(FuzzyIndex::from(matches));
         }
         self.selected_index = 0;
     }
@@ -410,7 +410,12 @@ impl App {
                     event::Event::Key(key) => {
                         match (key.code, key.modifiers) {
                             (KeyCode::Enter, _) => {
-                                let idx = self.indexer.get(self.selected_index).ok_or(anyhow!(
+                                let indexer = if let Some(indexer) = self.indexer {
+                                    indexer
+                                } else {
+                                    return Ok(None);
+                                };
+                                let idx = indexer.get(self.selected_index).ok_or(anyhow!(
                                     "index {:?} not in indexer",
                                     self.selected_index
                                 ))?;
@@ -479,34 +484,24 @@ impl App {
         }
     }
 
-    fn render(&self, frame: &mut Frame) {
-        let layout = Layout::vertical([
-            Constraint::Min(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(5),
-        ]);
-        let [history_area, status_area, input_area, preview_area] = frame.area().layout(&layout);
-
-        let available_height = history_area.height.saturating_sub(1) as usize;
-
-        let now = Utc::now().timestamp_millis();
-        let timeago_fmt = timeago::Formatter::new();
-        let history: Vec<ListItem> = self
-            .indexer
-            .first_n(available_height.min(self.events.len()))
+    fn render_history(
+        &self,
+        indexer: &FuzzyIndex,
+        num_items: usize,
+        timeago_fn: impl Fn(&Event) -> String,
+    ) -> Vec<ListItem<'_>> {
+        indexer
+            .first_n(num_items)
             .enumerate()
             .rev()
             .filter_map(|(i, idx)| {
                 // TODO should always be Some(...): skip, report, log otherwise?
                 let event = self.events.get(idx)?;
-                let ago = timeago_fmt.convert(std::time::Duration::from_millis(
-                    (now - event.endtime) as u64,
-                ));
+                let ago = timeago_fn(event);
                 let command = &event.command;
                 let mut spans = Vec::new();
                 spans.push(Span::raw(format!("{ago} -- ")));
-                if let Some(hl_indides) = self.indexer.highlight_indices(i) {
+                if let Some(hl_indides) = indexer.highlight_indices(i) {
                     let mut last_index = 0;
 
                     for &char_index in hl_indides {
@@ -537,7 +532,7 @@ impl App {
                 }
 
                 if self.show_score
-                    && let Some(score) = self.indexer.matcher_score(i)
+                    && let Some(score) = indexer.matcher_score(i)
                 {
                     spans.push(Span::raw(format!(" ({})", score)));
                 }
@@ -549,12 +544,45 @@ impl App {
                     Some(item)
                 }
             })
-            .collect();
+            .collect()
+    }
+
+    fn render(&self, frame: &mut Frame) {
+        let layout = Layout::vertical([
+            Constraint::Min(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(5),
+        ]);
+        let [history_area, status_area, input_area, preview_area] = frame.area().layout(&layout);
+
+        let available_height = history_area.height.saturating_sub(1) as usize;
+
+        let now = Utc::now().timestamp_millis();
+        let timeago_fmt = timeago::Formatter::new();
+        let timeago_fn = |event: &Event| {
+            timeago_fmt.convert(std::time::Duration::from_millis(
+                (now - event.endtime) as u64,
+            ))
+        };
+        let history: Vec<ListItem> = if let Some(indexer) = &self.indexer {
+            self.render_history(
+                &indexer,
+                available_height.min(self.events.len()),
+                timeago_fn,
+            )
+        } else {
+            vec![]
+        };
         let history_widget = List::new(history)
             .block(Block::default().padding(ratatui::widgets::Padding::horizontal(2)));
         frame.render_widget(history_widget, history_area);
 
-        let filtered = self.indexer.len().unwrap_or(self.events.len());
+        let filtered = if let Some(indexer) = &self.indexer {
+            indexer.len()
+        } else {
+            0
+        };
         let status_text = format!("{filtered}/{}", self.events.len());
         let status_line = Line::from(vec![Span::raw("  "), Span::raw(status_text)]);
         let filters = format!("[{}]  ", self.active_filters());
@@ -581,7 +609,9 @@ impl App {
             input_area.y,
         ));
 
-        let preview_content = if let Some(idx) = self.indexer.get(self.selected_index) {
+        let preview_content = if let Some(indexer) = &self.indexer
+            && let Some(idx) = indexer.get(self.selected_index)
+        {
             if let Some(event) = self.events.get(idx) {
                 format!("[exit code={}]: {}", event.exit_code, event.command)
             } else {
@@ -610,7 +640,7 @@ mod tests {
         App {
             input: input.to_string(),
             character_index,
-            indexer: crate::matcher::FuzzyIndex::identity(),
+            indexer: None,
             reader: EventReader::new(),
             events: Vec::new(),
             selected_index: 0,
