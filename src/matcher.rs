@@ -327,9 +327,9 @@ impl From<Vec<Match>> for FuzzyIndex {
             highlight_indices.push(highlights);
         }
         Self {
-            indices: indices,
-            scores: scores,
-            highlight_indices: highlight_indices,
+            indices,
+            scores,
+            highlight_indices,
         }
     }
 }
@@ -354,9 +354,9 @@ impl FuzzyIndex {
             highlight_indices.push(highlights);
         }
         Self {
-            indices: indices,
-            scores: scores,
-            highlight_indices: highlight_indices,
+            indices,
+            scores,
+            highlight_indices,
         }
     }
 

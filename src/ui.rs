@@ -566,11 +566,7 @@ impl App {
             ))
         };
         let history: Vec<ListItem> = if let Some(indexer) = &self.indexer {
-            self.render_history(
-                &indexer,
-                available_height.min(self.events.len()),
-                timeago_fn,
-            )
+            self.render_history(indexer, available_height.min(self.events.len()), timeago_fn)
         } else {
             vec![]
         };
