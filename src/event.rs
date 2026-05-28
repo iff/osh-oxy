@@ -146,7 +146,7 @@ mod tests {
 
     #[test]
     fn sort_by_endtime() {
-        let mut events = vec![
+        let mut events = [
             event_with_endtime(300),
             event_with_endtime(100),
             event_with_endtime(200),

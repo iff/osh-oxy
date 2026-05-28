@@ -37,7 +37,7 @@ fn create_presorted_files(
 fn benchmark_sort(c: &mut Criterion) {
     let mut group = c.benchmark_group("par_sort_unstable");
 
-    for total_events in [500_000, 1_000_000].iter() {
+    for total_events in &[500_000, 1_000_000] {
         group.bench_with_input(format!("{total_events}_events"), total_events, |b, _| {
             b.iter_with_setup(
                 || osh_file(*total_events, false),
@@ -57,7 +57,7 @@ fn benchmark_kmerge(c: &mut Criterion) {
     let mut group = c.benchmark_group("kmerge_by");
     let num_files = 5;
 
-    for total_events in [500_000, 1_000_000].iter() {
+    for total_events in &[500_000, 1_000_000] {
         let events_per_file = total_events / num_files;
 
         group.bench_with_input(format!("{total_events}_events"), total_events, |b, _| {
