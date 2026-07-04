@@ -1,3 +1,6 @@
+- replace fuzzy-matcher with nucleo? (https://github.com/helix-editor/nucleo)
+  - https://docs.rs/nucleo-matcher/0.3.1/nucleo_matcher/struct.Matcher.html
+- switch to termina with 0.30.2: https://ratatui.rs/highlights/v0302/#backend-ratatui-termina
 - replace fuzzy-matcher with frizbee (https://github.com/saghen/frizbee)?
 r reimplement basics we need (tui with ratatui and fuzzy-matcher as lib) to enable reload/filters
   - hardcoded offsets (height...)
