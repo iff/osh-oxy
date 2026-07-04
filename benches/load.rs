@@ -20,12 +20,15 @@ fn benchmark_load_rmp(c: &mut Criterion) {
         .collect();
     let oshs_data: Vec<&[u8]> = osh_files.iter().map(mmap).collect();
 
-    group.bench_function("load_all_files", |_| {
-        let all_events = oshs_data
-            .par_iter()
-            .map(|d| rmp::load_osh_events(d).expect("load events"))
-            .collect::<Vec<Vec<Event>>>();
-        black_box(all_events);
+    group.bench_function("load_all_files", |b| {
+        b.iter(|| {
+            black_box(
+                oshs_data
+                    .par_iter()
+                    .map(|d| rmp::load_osh_events(d).expect("load events"))
+                    .collect::<Vec<Vec<Event>>>(),
+            );
+        });
     });
 
     group.finish();
