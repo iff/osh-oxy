@@ -82,6 +82,8 @@
               cargo-deny
               cargo-edit
               cargo-watch
+              cargo-nextest
+              gnuplot
               zizmor
               pinact
               hyperfine
