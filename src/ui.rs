@@ -290,7 +290,15 @@ impl App {
         } else {
             let matcher = FuzzyEngine::new(&self.input);
             let mut result = matcher.match_all(&entries);
-            result.sort_unstable_by_key(|(_, score, _)| std::cmp::Reverse(*score));
+            result.sort_unstable_by_key(|(idx, score, _)| {
+                // TODO or just use min-length?
+                #[expect(
+                    clippy::indexing_slicing,
+                    reason = "invariant by construction: idx < self.events.len()"
+                )]
+                let endtime = self.events[*idx].endtime;
+                (std::cmp::Reverse(*score), std::cmp::Reverse(endtime))
+            });
             self.indexer = Some(FuzzyIndex::from(result));
         }
         self.selected_index = 0;
