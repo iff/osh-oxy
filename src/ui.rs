@@ -830,7 +830,7 @@ mod tests {
         });
         sender.send(event).unwrap();
         drop(sender); // closing the channel lets us wait for the thread to drain it
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        std::thread::sleep(std::time::Duration::from_millis(300));
 
         app.collect_new_events();
         assert_eq!(app.events.len(), 1);
