@@ -55,7 +55,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    name: stable / test
+    name: stable / doctest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -64,8 +64,23 @@ jobs:
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # branch=master
         with:
           toolchain: stable
-      - name: cargo test --locked
-        run: cargo test --locked --all-features
+      - name: cargo test --doc --locked
+        run: cargo test --doc --locked --all-features
+
+  nextest:
+    runs-on: ubuntu-latest
+    name: stable / nextest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: install stable
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # branch=master
+        with:
+          toolchain: stable
+      - uses: taiki-e/install-action@7c6f5444541685720fe90ed47f7fa10f12f790f5 # tag=nextest
+      - name: cargo nextest
+        run: cargo nextest run --locked --all-features
 
   coverage:
     runs-on: ubuntu-latest
@@ -92,6 +107,7 @@ jobs:
         run: echo "RUST=$(rustc --version)" >> "$GITHUB_ENV"
       - name: Upload to codecov.io
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # tag=v7.0.0
+        continue-on-error: ${{ github.actor == 'dependabot[bot]' }}
         with:
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
