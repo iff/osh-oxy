@@ -2,7 +2,6 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::Display,
-    fs::File,
     io::Write,
     str::FromStr,
     sync::{Arc, Mutex},
@@ -13,16 +12,16 @@ use std::{
 use anyhow::anyhow;
 use chrono::Utc;
 use crossbeam_channel::Receiver;
-use crossterm::{
-    ExecutableCommand,
-    event::{self, KeyCode, KeyModifiers},
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
-};
 use ratatui::{
     Frame, Terminal,
-    backend::CrosstermBackend,
+    backend::TerminaBackend,
     layout::{Constraint, Direction, Layout, Position},
     style::{Color, Style},
+    termina::{
+        Event as TerminaEvent, EventReader as TerminaEventReader, PlatformTerminal, Terminal as _,
+        escape::csi::{Csi, DecPrivateMode, DecPrivateModeCode, Mode},
+        event::{KeyCode, KeyEventKind, Modifiers as KeyModifiers},
+    },
     text::{Line, Span},
     widgets::{Block, List, ListItem, Paragraph},
 };
@@ -178,7 +177,7 @@ impl Tui {
     ) -> Option<Event> {
         let reader = EventReader::new().start(receiver);
         Tui::setup_terminal()
-            .and_then(|mut terminal| {
+            .and_then(|(mut terminal, terminal_events)| {
                 let result = App::new(
                     reader,
                     query.to_string(),
@@ -187,29 +186,54 @@ impl Tui {
                     filters,
                     show_score,
                 )
-                .run(&mut terminal);
+                .run(&mut terminal, &terminal_events);
                 Tui::restore_terminal(&mut terminal)?;
                 result
             })
             .unwrap_or_default()
     }
 
-    fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<File>>> {
-        let mut tty = File::options().read(true).write(true).open("/dev/tty")?;
-        enable_raw_mode()?;
-        tty.execute(EnterAlternateScreen)?;
-        let backend = CrosstermBackend::new(tty);
+    fn setup_terminal() -> anyhow::Result<(
+        Terminal<TerminaBackend<PlatformTerminal>>,
+        TerminaEventReader,
+    )> {
+        let mut tty = PlatformTerminal::new()?;
+        tty.enter_raw_mode()?;
+        write!(
+            tty,
+            "{}",
+            decset(DecPrivateModeCode::ClearAndEnableAlternateScreen)
+        )?;
+        tty.flush()?;
+        let terminal_events = tty.event_reader();
+        let backend = TerminaBackend::new(tty);
         let terminal = Terminal::new(backend)?;
-        Ok(terminal)
+        Ok((terminal, terminal_events))
     }
 
-    fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<File>>) -> anyhow::Result<()> {
-        terminal.backend_mut().execute(LeaveAlternateScreen)?;
+    // raw mode is restored on drop of the underlying [`PlatformTerminal`]
+    // this only needs to undo alternate screen and cursor visibility
+    fn restore_terminal(
+        terminal: &mut Terminal<TerminaBackend<PlatformTerminal>>,
+    ) -> anyhow::Result<()> {
+        let backend = terminal.backend_mut();
+        write!(
+            backend,
+            "{}",
+            decreset(DecPrivateModeCode::ClearAndEnableAlternateScreen)
+        )?;
         terminal.show_cursor()?;
-        disable_raw_mode()?;
         terminal.backend_mut().flush()?;
         Ok(())
     }
+}
+
+fn decset(mode: DecPrivateModeCode) -> Csi {
+    Csi::Mode(Mode::SetDecPrivateMode(DecPrivateMode::Code(mode)))
+}
+
+fn decreset(mode: DecPrivateModeCode) -> Csi {
+    Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(mode)))
 }
 
 /// app holds the state of the application
@@ -411,18 +435,19 @@ impl App {
 
     fn run(
         mut self,
-        terminal: &mut Terminal<CrosstermBackend<File>>,
+        terminal: &mut Terminal<TerminaBackend<PlatformTerminal>>,
+        terminal_events: &TerminaEventReader,
     ) -> anyhow::Result<Option<Event>> {
         self.collect_new_events();
         terminal.draw(|frame| self.render(frame))?;
 
         loop {
-            if event::poll(Duration::from_millis(100))? {
-                match event::read()? {
-                    event::Event::Resize(_width, _height) => {
+            if terminal_events.poll(Some(Duration::from_millis(100)), |_| true)? {
+                match terminal_events.read(|_| true)? {
+                    TerminaEvent::WindowResized(_) => {
                         terminal.draw(|frame| self.render(frame))?;
                     }
-                    event::Event::Key(key) => {
+                    TerminaEvent::Key(key) if key.kind == KeyEventKind::Press => {
                         match (key.code, key.modifiers) {
                             (KeyCode::Enter, _) => {
                                 let Some(indexer) = self.indexer else {
@@ -476,7 +501,7 @@ impl App {
                                 self.move_selection_up(available_height);
                             }
                             (KeyCode::Down, _) => self.move_selection_down(),
-                            (KeyCode::Esc, _)
+                            (KeyCode::Escape, _)
                             | (KeyCode::Char('c' | 'd'), KeyModifiers::CONTROL) => {
                                 return Ok(None);
                             }
