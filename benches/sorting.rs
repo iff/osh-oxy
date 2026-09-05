@@ -37,13 +37,32 @@ fn create_presorted_files(
 fn benchmark_sort(c: &mut Criterion) {
     let mut group = c.benchmark_group("par_sort_unstable");
 
-    for total_events in &[500_000, 1_000_000] {
+    for total_events in &[200_000, 500_000, 1_000_000] {
         group.bench_with_input(format!("{total_events}_events"), total_events, |b, _| {
             b.iter_with_setup(
                 || osh_file(*total_events, false),
                 |all| {
                     let mut all_items: Vec<Event> = all.into_iter().collect();
                     all_items.par_sort_unstable_by(|a, b| b.cmp(a));
+                    black_box(all_items)
+                },
+            );
+        });
+    }
+
+    group.finish();
+}
+
+fn benchmark_sort_sequential(c: &mut Criterion) {
+    let mut group = c.benchmark_group("sort_unstable");
+
+    for total_events in &[200_000, 500_000, 1_000_000] {
+        group.bench_with_input(format!("{total_events}_events"), total_events, |b, _| {
+            b.iter_with_setup(
+                || osh_file(*total_events, false),
+                |all| {
+                    let mut all_items: Vec<Event> = all.into_iter().collect();
+                    all_items.sort_unstable_by(|a, b| b.cmp(a));
                     black_box(all_items)
                 },
             );
@@ -76,5 +95,10 @@ fn benchmark_kmerge(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, benchmark_sort, benchmark_kmerge,);
+criterion_group!(
+    benches,
+    benchmark_sort,
+    benchmark_sort_sequential,
+    benchmark_kmerge,
+);
 criterion_main!(benches);

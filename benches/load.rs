@@ -31,6 +31,17 @@ fn benchmark_load_rmp(c: &mut Criterion) {
         });
     });
 
+    group.bench_function("load_all_files_sequential", |b| {
+        b.iter(|| {
+            black_box(
+                oshs_data
+                    .iter()
+                    .map(|d| rmp::load_osh_events(d).expect("load events"))
+                    .collect::<Vec<Vec<Event>>>(),
+            );
+        });
+    });
+
     group.finish();
 }
 
