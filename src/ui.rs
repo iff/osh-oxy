@@ -4,8 +4,7 @@ use std::{
     fmt::Display,
     io::Write,
     str::FromStr,
-    sync::{Arc, Mutex},
-    thread,
+    sync::Arc,
     time::Duration,
 };
 
@@ -31,37 +30,19 @@ use crate::{
     matcher::{FuzzyEngine, FuzzyIndex, Match},
 };
 
+/// Non-blocking drain of the [`Event`] channel fed by the caller of [`Tui::start`].
 struct EventReader {
-    // TODO this is a bit ugly can we refactor this?
-    // maybe Cow is enough here
-    buffer: Arc<Mutex<Vec<Arc<Event>>>>,
+    receiver: Receiver<Arc<Event>>,
 }
 
 impl EventReader {
-    fn new() -> Self {
-        Self {
-            buffer: Arc::new(Mutex::new(Vec::new())),
-        }
+    fn new(receiver: Receiver<Arc<Event>>) -> Self {
+        Self { receiver }
     }
 
-    #[must_use]
-    fn start(self, receiver: Receiver<Arc<Event>>) -> Self {
-        let buffer = Arc::clone(&self.buffer);
-        thread::spawn(move || {
-            while let Ok(event) = receiver.recv() {
-                if let Ok(mut buffer) = buffer.lock() {
-                    buffer.push(event);
-                }
-            }
-        });
-        self
-    }
-
+    /// Returns every event that has arrived since the last call, without blocking.
     fn take(&self) -> Vec<Arc<Event>> {
-        self.buffer
-            .lock()
-            .map(|mut buffer| std::mem::take(&mut *buffer))
-            .unwrap_or_default()
+        self.receiver.try_iter().collect()
     }
 }
 
@@ -175,7 +156,7 @@ impl Tui {
         filters: HashSet<EventFilter>,
         show_score: bool,
     ) -> Option<Event> {
-        let reader = EventReader::new().start(receiver);
+        let reader = EventReader::new(receiver);
         Tui::setup_terminal()
             .and_then(|(mut terminal, terminal_events)| {
                 let result = App::new(
@@ -244,7 +225,7 @@ struct App {
     character_index: u16,
     /// indices into events sorted according to fuzzy score if we have a query
     indexer: Option<FuzzyIndex>,
-    /// reader for collecting events from background thread
+    /// non-blocking drain of events sent by the loader thread
     reader: EventReader,
     /// accumulated events pool for filtering and matching
     events: Vec<Arc<Event>>,
@@ -679,7 +660,7 @@ mod tests {
             input: input.to_string(),
             character_index,
             indexer: None,
-            reader: EventReader::new(),
+            reader: EventReader::new(crossbeam_channel::unbounded().1),
             events: Vec::new(),
             selected_index: 0,
             filters: HashSet::new(),
@@ -850,7 +831,7 @@ mod tests {
     fn collect_new_events_drains_channel() {
         let (sender, receiver) = crossbeam_channel::unbounded();
         let mut app = make_app("");
-        app.reader = EventReader::new().start(receiver);
+        app.reader = EventReader::new(receiver);
 
         let event = Arc::new(Event {
             timestamp_millis: 0,
@@ -862,8 +843,7 @@ mod tests {
             session: "s".to_string(),
         });
         sender.send(event).unwrap();
-        drop(sender); // closing the channel lets us wait for the thread to drain it
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        drop(sender);
 
         app.collect_new_events();
         assert_eq!(app.events.len(), 1);
