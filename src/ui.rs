@@ -248,8 +248,7 @@ impl App {
         filters: HashSet<EventFilter>,
         show_score: bool,
     ) -> Self {
-        // TODO we should truncate (or handle) query inputs that are wider than the screen?
-        let character_index = u16::try_from(query.len()).unwrap_or(u16::MAX);
+        let character_index = u16::try_from(query.chars().count()).unwrap_or(u16::MAX);
         Self {
             input: query,
             indexer: None,
