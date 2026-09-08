@@ -4,7 +4,6 @@ use std::{
     fmt::Display,
     io::Write,
     str::FromStr,
-    sync::Arc,
     time::Duration,
 };
 
@@ -32,16 +31,16 @@ use crate::{
 
 /// Non-blocking drain of the [`Event`] channel fed by the caller of [`Tui::start`].
 struct EventReader {
-    receiver: Receiver<Arc<Event>>,
+    receiver: Receiver<Event>,
 }
 
 impl EventReader {
-    fn new(receiver: Receiver<Arc<Event>>) -> Self {
+    fn new(receiver: Receiver<Event>) -> Self {
         Self { receiver }
     }
 
     /// Returns every event that has arrived since the last call, without blocking.
-    fn take(&self) -> Vec<Arc<Event>> {
+    fn take(&self) -> Vec<Event> {
         self.receiver.try_iter().collect()
     }
 }
@@ -91,13 +90,13 @@ impl FromStr for EventFilter {
 
 /// View after filtering Events
 struct FilteredView<'a> {
-    events: &'a [Arc<Event>],
+    events: &'a [Event],
     indices: Vec<usize>,
 }
 
 impl<'a> FilteredView<'a> {
     fn build(
-        events: &'a [Arc<Event>],
+        events: &'a [Event],
         filters: &HashSet<EventFilter>,
         folder: &str,
         session_id: Option<&str>,
@@ -149,7 +148,7 @@ impl Tui {
     /// Returns the selected event, if any.
     #[must_use]
     pub fn start(
-        receiver: Receiver<Arc<Event>>,
+        receiver: Receiver<Event>,
         query: &str,
         folder: &str,
         session_id: Option<String>,
@@ -228,7 +227,7 @@ struct App {
     /// non-blocking drain of events sent by the loader thread
     reader: EventReader,
     /// accumulated events pool for filtering and matching
-    events: Vec<Arc<Event>>,
+    events: Vec<Event>,
     /// currently selected index in the history widget (0 = bottom-most)
     selected_index: usize,
     /// currently active event filter
@@ -439,7 +438,7 @@ impl App {
                                     self.selected_index
                                 ))?;
                                 if let Some(event) = self.events.get(idx) {
-                                    let event = Arc::unwrap_or_clone(event.clone());
+                                    let event = event.clone();
                                     return Ok(Some(event));
                                 }
                                 return Ok(None);
@@ -833,7 +832,7 @@ mod tests {
         let mut app = make_app("");
         app.reader = EventReader::new(receiver);
 
-        let event = Arc::new(Event {
+        let event = Event {
             timestamp_millis: 0,
             command: "git status".to_string(),
             endtime: 1000,
@@ -841,7 +840,7 @@ mod tests {
             folder: "/".to_string(),
             machine: "m".to_string(),
             session: "s".to_string(),
-        });
+        };
         sender.send(event).unwrap();
         drop(sender);
 

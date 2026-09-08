@@ -24,9 +24,7 @@ pub fn invoke(
             .expect("osh files loading")
             .into_iter()
             .map(|item| {
-                tx_item
-                    .send(Arc::new(item))
-                    .expect("sending items through channel");
+                tx_item.send(item).expect("sending items through channel");
             })
             .collect::<Vec<_>>();
 
