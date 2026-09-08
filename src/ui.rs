@@ -621,10 +621,13 @@ impl App {
         ]);
         let input = Paragraph::new(input_line).block(Block::default());
         frame.render_widget(input, input_area);
-        frame.set_cursor_position(Position::new(
-            input_area.x + self.character_index + 2,
-            input_area.y,
-        ));
+        // cursor does not exceed past the screen
+        let cursor_column = input_area
+            .x
+            .saturating_add(2)
+            .saturating_add(self.character_index)
+            .min(input_area.right().saturating_sub(1));
+        frame.set_cursor_position(Position::new(cursor_column, input_area.y));
 
         let preview_content = if let Some(indexer) = &self.indexer
             && let Some(idx) = indexer.get(self.selected_index)
