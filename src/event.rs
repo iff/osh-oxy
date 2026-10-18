@@ -61,20 +61,6 @@ impl From<JsonLineEvent> for Event {
     }
 }
 
-impl Eq for Event {}
-
-impl PartialOrd for Event {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Event {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.endtime.cmp(&other.endtime)
-    }
-}
-
 impl Event {
     /// # Errors
     ///
@@ -86,39 +72,7 @@ impl Event {
 
 #[cfg(test)]
 mod tests {
-    use std::cmp::Ordering;
-
     use super::*;
-
-    fn event_with_endtime(endtime: i64) -> Event {
-        Event {
-            timestamp_millis: 0,
-            command: String::new(),
-            endtime,
-            exit_code: 0,
-            folder: String::new(),
-            machine: String::new(),
-            session: String::new(),
-        }
-    }
-
-    #[test]
-    fn cmp_orders_by_endtime() {
-        let earlier = event_with_endtime(100);
-        let later = event_with_endtime(200);
-        assert_eq!(earlier.cmp(&later), Ordering::Less);
-        assert_eq!(later.cmp(&earlier), Ordering::Greater);
-        assert_eq!(earlier.cmp(&earlier), Ordering::Equal);
-    }
-
-    #[test]
-    fn partial_cmp_always_some() {
-        let a = event_with_endtime(100);
-        let b = event_with_endtime(200);
-        assert_eq!(a.partial_cmp(&b), Some(Ordering::Less));
-        assert_eq!(b.partial_cmp(&a), Some(Ordering::Greater));
-        assert_eq!(a.partial_cmp(&a), Some(Ordering::Equal));
-    }
 
     #[expect(deprecated, reason = "migration to binary format")]
     #[test]
@@ -142,19 +96,5 @@ mod tests {
         assert_eq!(event.folder, "/");
         assert_eq!(event.machine, "m");
         assert_eq!(event.session, "s");
-    }
-
-    #[test]
-    fn sort_by_endtime() {
-        let mut events = [
-            event_with_endtime(300),
-            event_with_endtime(100),
-            event_with_endtime(200),
-        ];
-        events.sort();
-        assert_eq!(
-            events.iter().map(|e| e.endtime).collect::<Vec<_>>(),
-            vec![100, 200, 300]
-        );
     }
 }

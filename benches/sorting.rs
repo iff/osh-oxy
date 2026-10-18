@@ -1,4 +1,4 @@
-use std::hint::black_box;
+use std::{cmp::Reverse, hint::black_box};
 
 use arbitrary::{Arbitrary, Unstructured};
 use criterion::{Criterion, criterion_group, criterion_main};
@@ -16,10 +16,7 @@ fn create_test_events(size: usize) -> impl Iterator<Item = Event> {
 fn osh_file(events_per_file: usize, sorted: bool) -> Vec<Event> {
     let mut events = create_test_events(events_per_file).collect::<Vec<_>>();
     if sorted {
-        #[allow(clippy::unwrap_used)]
-        events.sort_by(|a, b| b.partial_cmp(a).unwrap());
-        // TODO descending?
-        // events.reverse();
+        events.sort_by_key(|event| Reverse(event.endtime));
     }
     events
 }
@@ -43,7 +40,7 @@ fn benchmark_sort(c: &mut Criterion) {
                 || osh_file(*total_events, false),
                 |all| {
                     let mut all_items: Vec<Event> = all.into_iter().collect();
-                    all_items.par_sort_unstable_by(|a, b| b.cmp(a));
+                    all_items.par_sort_unstable_by_key(|event| Reverse(event.endtime));
                     black_box(all_items)
                 },
             );
@@ -62,7 +59,7 @@ fn benchmark_sort_sequential(c: &mut Criterion) {
                 || osh_file(*total_events, false),
                 |all| {
                     let mut all_items: Vec<Event> = all.into_iter().collect();
-                    all_items.sort_unstable_by(|a, b| b.cmp(a));
+                    all_items.sort_unstable_by_key(|event| Reverse(event.endtime));
                     black_box(all_items)
                 },
             );
@@ -83,9 +80,10 @@ fn benchmark_kmerge(c: &mut Criterion) {
             b.iter_with_setup(
                 || create_presorted_files(num_files, events_per_file, true),
                 |presorted_files| {
-                    let iterators = presorted_files.into_iter().map(|ev| ev.into_iter().rev());
+                    let iterators = presorted_files.into_iter().map(IntoIterator::into_iter);
                     let result: Vec<_> =
-                        kmerge_by(iterators, |a: &Event, b: &Event| a > b).collect();
+                        kmerge_by(iterators, |a: &Event, b: &Event| a.endtime > b.endtime)
+                            .collect();
                     black_box(result)
                 },
             );

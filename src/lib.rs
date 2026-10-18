@@ -1,4 +1,5 @@
 use std::{
+    cmp::Reverse,
     collections::HashSet,
     fs::File,
     os::fd::AsRawFd,
@@ -99,7 +100,7 @@ pub fn load_sorted() -> anyhow::Result<Vec<Event>> {
         .collect::<Result<Vec<_>, _>>()?;
 
     let mut all_items: Vec<Event> = all.into_iter().flatten().collect();
-    all_items.par_sort_unstable_by(|a, b| b.cmp(a));
+    all_items.par_sort_unstable_by_key(|event| Reverse(event.endtime));
     Ok(all_items)
 }
 
