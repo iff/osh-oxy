@@ -146,7 +146,10 @@ pub struct Tui;
 impl Tui {
     /// Set up the terminal and run the TUI. `receiver` is fed [`Event`]s by the caller.
     /// Returns the selected event, if any.
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Return an `Err` if setting up, drawing to or restoring the terminal fails.
     pub fn start(
         receiver: Receiver<Event>,
         query: &str,
@@ -154,23 +157,23 @@ impl Tui {
         session_id: Option<String>,
         filters: HashSet<EventFilter>,
         show_score: bool,
-    ) -> Option<Event> {
+    ) -> anyhow::Result<Option<Event>> {
         let reader = EventReader::new(receiver);
-        Tui::setup_terminal()
-            .and_then(|(mut terminal, terminal_events)| {
-                let result = App::new(
-                    reader,
-                    query.to_string(),
-                    folder.to_string(),
-                    session_id,
-                    filters,
-                    show_score,
-                )
-                .run(&mut terminal, &terminal_events);
-                Tui::restore_terminal(&mut terminal)?;
-                result
-            })
-            .unwrap_or_default()
+        let (mut terminal, terminal_events) = Tui::setup_terminal()?;
+        let result = App::new(
+            reader,
+            query.to_string(),
+            folder.to_string(),
+            session_id,
+            filters,
+            show_score,
+        )
+        .run(&mut terminal, &terminal_events);
+        let restored = Tui::restore_terminal(&mut terminal);
+        // restore must happen before checking errors
+        let selected = result?;
+        restored?;
+        Ok(selected)
     }
 
     fn setup_terminal() -> anyhow::Result<(
@@ -178,16 +181,28 @@ impl Tui {
         TerminaEventReader,
     )> {
         let mut tty = PlatformTerminal::new()?;
+        // hook is the only place to leave the alternate screen with panic=abort?
+        tty.set_panic_hook(|handle| {
+            if let Err(error) = write!(
+                handle,
+                "{}{}",
+                decreset(DecPrivateModeCode::ClearAndEnableAlternateScreen),
+                decset(DecPrivateModeCode::ShowCursor)
+            ) {
+                eprintln!("failed to restore terminal: {error}");
+            }
+        });
         tty.enter_raw_mode()?;
+        let terminal_events = tty.event_reader();
+        let mut terminal = Terminal::new(TerminaBackend::new(tty))?;
+        // only now enter the alternate screen to avoid being stuck in alternate screen
+        let backend = terminal.backend_mut();
         write!(
-            tty,
+            backend,
             "{}",
             decset(DecPrivateModeCode::ClearAndEnableAlternateScreen)
         )?;
-        tty.flush()?;
-        let terminal_events = tty.event_reader();
-        let backend = TerminaBackend::new(tty);
-        let terminal = Terminal::new(backend)?;
+        backend.flush()?;
         Ok((terminal, terminal_events))
     }
 
