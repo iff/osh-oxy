@@ -76,6 +76,7 @@ impl Entry {
 pub fn load_osh_events(data: &[u8]) -> std::io::Result<Vec<JsonLineEvent>> {
     let mut events = Vec::new();
     for line in data.split(|c| *c == b'\n') {
+        // TODO use from_utf8
         let line = unsafe { std::str::from_utf8_unchecked(line) };
         if let Ok(entry) = serde_json::from_str::<Entry>(line)
             && let Some(event) = entry.maybe_event()

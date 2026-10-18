@@ -22,6 +22,7 @@ pub fn invoke() -> anyhow::Result<()> {
 
         let output_path = path.with_extension("bosh");
 
+        // TODO first check that path does not exist?
         let file = std::fs::File::create(&output_path).context("Failed to create output file")?;
         let mut writer = BinaryWriter::new(file);
         for event in events {

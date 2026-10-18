@@ -16,6 +16,8 @@ pub fn invoke(
     filters: HashSet<EventFilter>,
     show_score: bool,
 ) {
+    // the channel does not hide anything as we first sort everything but we want the tui to appear
+    // instantly
     let (tx_item, receiver) = crossbeam_channel::unbounded();
     thread::spawn(move || {
         // TODO not sure if we want to sort already?

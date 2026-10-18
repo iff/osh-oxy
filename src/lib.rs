@@ -42,13 +42,14 @@ pub fn mmap(file: &File) -> &'_ [u8] {
             file.as_raw_fd(),
             0,
         );
-        if ptr == libc::MAP_FAILED {
-            panic!("{:?}", std::io::Error::last_os_error());
-        } else {
-            let r = libc::madvise(ptr, len, libc::MADV_SEQUENTIAL);
-            assert!(r == 0, "{:?}", std::io::Error::last_os_error());
-            std::slice::from_raw_parts(ptr as *const u8, len)
-        }
+        assert!(
+            ptr != libc::MAP_FAILED,
+            "{:?}",
+            std::io::Error::last_os_error()
+        );
+        let r = libc::madvise(ptr, len, libc::MADV_SEQUENTIAL);
+        assert!(r == 0, "{:?}", std::io::Error::last_os_error());
+        std::slice::from_raw_parts(ptr as *const u8, len)
     }
 }
 
