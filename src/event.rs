@@ -1,4 +1,4 @@
-use std::{io::Write, path::PathBuf};
+use std::{io::Write, path::PathBuf, time::Duration};
 
 use arbitrary::Arbitrary;
 use serde::{Deserialize, Serialize};
@@ -68,11 +68,52 @@ impl Event {
     pub fn write<W: Write>(self, writer: &mut BinaryWriter<W>) -> anyhow::Result<()> {
         writer.write(self)
     }
+
+    /// time elapsed since the event ended, relative to `now_millis`
+    #[must_use]
+    pub fn elapsed_since_end(&self, now_millis: i64) -> Duration {
+        // future endtimes (clock skew between machines) count as now
+        let elapsed = u64::try_from(now_millis.saturating_sub(self.endtime)).unwrap_or(0);
+        Duration::from_millis(elapsed)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn event_with_endtime(endtime: i64) -> Event {
+        Event {
+            timestamp_millis: 0,
+            command: String::new(),
+            endtime,
+            exit_code: 0,
+            folder: String::new(),
+            machine: String::new(),
+            session: String::new(),
+        }
+    }
+
+    #[test]
+    fn elapsed_since_end_in_past() {
+        let event = event_with_endtime(1_000);
+        assert_eq!(event.elapsed_since_end(3_500), Duration::from_millis(2_500));
+    }
+
+    #[test]
+    fn elapsed_since_end_in_future_is_zero() {
+        let event = event_with_endtime(5_000);
+        assert_eq!(event.elapsed_since_end(1_000), Duration::ZERO);
+    }
+
+    #[test]
+    fn elapsed_since_end_saturates() {
+        let event = event_with_endtime(i64::MIN);
+        assert_eq!(
+            event.elapsed_since_end(1_000),
+            Duration::from_millis(i64::MAX.cast_unsigned())
+        );
+    }
 
     #[expect(deprecated, reason = "migration to binary format")]
     #[test]

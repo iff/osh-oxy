@@ -607,11 +607,7 @@ impl App {
 
         let now = Utc::now().timestamp_millis();
         let timeago_fmt = timeago::Formatter::new();
-        let timeago_fn = |event: &Event| {
-            timeago_fmt.convert(std::time::Duration::from_millis(
-                (now - event.endtime).cast_unsigned(),
-            ))
-        };
+        let timeago_fn = |event: &Event| timeago_fmt.convert(event.elapsed_since_end(now));
         let history: Vec<ListItem> = if let Some(indexer) = &self.indexer {
             self.render_history(indexer, available_height.min(self.events.len()), timeago_fn)
         } else {

@@ -14,8 +14,11 @@ pub fn invoke() -> anyhow::Result<()> {
     let formatted: String = load_sorted()?
         .par_iter()
         .map(|item| {
-            let d = std::time::Duration::from_millis((now - item.endtime).cast_unsigned());
-            format!("{} --- {}\n", f.convert(d), item.command)
+            format!(
+                "{} --- {}\n",
+                f.convert(item.elapsed_since_end(now)),
+                item.command
+            )
         })
         .collect();
 
