@@ -12,7 +12,7 @@ simple fuzzy history search using our own history format, based on our Python
 Currently it offers two commands to append and search:
 
 - append to bosh history file
-- search all \*.bosh history files with skim
+- search all \*.bosh history files
 
 ## installation (nix flake)
 
@@ -111,11 +111,11 @@ function __osh {
     osh-oxy $@
 }
 
-autoload -U add-zsh-hook
-
 function __osh_ts {
     echo $(($(date +%s) * 1000))
 }
+
+autoload -U add-zsh-hook
 
 function __osh_before {
     local command=''${1[0,-2]}
@@ -148,10 +148,10 @@ function __osh_after {
 add-zsh-hook precmd __osh_after
 
 function __osh_search {
-    if [[ -v __osh_session_id ]]; then
+    if [[ ! -v __osh_session_id ]]; then
         __osh_session_id=$(uuidgen)
     fi
-    BUFFER=$(__osh ui --folder=$(pwd) --query=$BUFFER --session-id=$__osh_session_id)
+    BUFFER=$(__osh search --folder=$(pwd) --query=$BUFFER --session-id=$__osh_session_id)
     CURSOR=$#BUFFER
     zle reset-prompt
 }
