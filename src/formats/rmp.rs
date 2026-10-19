@@ -82,45 +82,42 @@ pub fn load_osh_events(data: &[u8]) -> std::io::Result<Vec<Event>> {
 
 #[cfg(test)]
 mod tests {
-    use arbitrary::{Arbitrary, Unstructured};
-    use tempfile::NamedTempFile;
+    use proptest::{arbitrary::any, strategy::Strategy};
 
     use super::*;
 
-    #[test]
-    fn write_binary_event() -> anyhow::Result<()> {
-        let temp_file = NamedTempFile::new()?;
-
-        let data: Vec<u8> = (1u8..=255).cycle().take(3000).collect();
-        let mut u = Unstructured::new(&data);
-        let e = crate::event::Event::arbitrary(&mut u).unwrap();
-
-        let mut writer = BinaryWriter::new(std::fs::File::create(temp_file.path())?);
-        e.write(&mut writer)?;
-
-        Ok(())
+    fn event() -> impl Strategy<Value = Event> {
+        (
+            any::<i64>(),
+            any::<String>(),
+            any::<i64>(),
+            any::<i16>(),
+            any::<String>(),
+            any::<String>(),
+            any::<String>(),
+        )
+            .prop_map(
+                |(timestamp_millis, command, endtime, exit_code, folder, machine, session)| Event {
+                    timestamp_millis,
+                    command,
+                    endtime,
+                    exit_code,
+                    folder,
+                    machine,
+                    session,
+                },
+            )
     }
 
-    #[test]
-    fn roundtrip_binary_event() -> anyhow::Result<()> {
-        let num_events = 30;
-        let data: Vec<u8> = (1u8..=255).cycle().take(1000).collect();
-        let mut u = Unstructured::new(&data);
-
-        let mut events = Vec::new();
-        let mut buffer = Vec::new();
-        let mut writer = BinaryWriter::new(&mut buffer);
-
-        for _ in 0..num_events {
-            let event = crate::event::Event::arbitrary(&mut u).unwrap();
-            event.clone().write(&mut writer)?;
-            events.push(event);
+    proptest::proptest! {
+        #[test]
+        fn event_serde_roundtrip(events in proptest::collection::vec(event(), 0..20)) {
+            let mut buffer = Vec::new();
+            let mut writer = BinaryWriter::new(&mut buffer);
+            for event in events.clone() {
+                event.write(&mut writer).unwrap();
+            }
+            proptest::prop_assert_eq!(load_osh_events(&buffer).unwrap(), events);
         }
-
-        let read_events = load_osh_events(buffer.as_ref())?;
-        assert_eq!(read_events.len(), num_events);
-        assert!(read_events.into_iter().eq(events.into_iter()));
-
-        Ok(())
     }
 }

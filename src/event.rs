@@ -1,13 +1,12 @@
-use std::{io::Write, path::PathBuf, time::Duration};
+use std::{io::Write, time::Duration};
 
-use arbitrary::Arbitrary;
 use serde::{Deserialize, Serialize};
 
 #[expect(deprecated, reason = "migration to binary format")]
 use crate::formats::json_lines::JsonLineEvent;
 use crate::formats::rmp::BinaryWriter;
 
-#[derive(Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 /// Event format for entries in the history file.
 pub struct Event {
@@ -22,23 +21,6 @@ pub struct Event {
     pub machine: String,
     /// a special session id to filter by session
     pub session: String,
-}
-
-impl Arbitrary<'_> for Event {
-    fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
-        let folder: PathBuf = u.arbitrary()?;
-        let machine_id: String = u.arbitrary()?;
-        let session_id: String = u.arbitrary()?;
-        Ok(Event {
-            timestamp_millis: u.arbitrary()?,
-            command: u.arbitrary()?,
-            endtime: u.arbitrary()?,
-            exit_code: u.arbitrary()?,
-            folder: folder.to_string_lossy().into(),
-            machine: machine_id,
-            session: session_id,
-        })
-    }
 }
 
 #[expect(deprecated, reason = "migration to binary format")]
