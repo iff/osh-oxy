@@ -24,16 +24,28 @@ pub mod formats;
 pub mod matcher;
 pub mod ui;
 
-/// memory map `file`
+/// memory map `file` read-only. The mapping is never unmapped and lives until the process exits.
+///
 /// # Panics
 ///
 /// Will panic if statx or memory mapping fails, and if we can't set the `MADV_SEQUENTIAL` hint.
 #[must_use]
-pub fn mmap(file: &File) -> &'_ [u8] {
+pub(crate) fn mmap(file: &File) -> &'_ [u8] {
     #[expect(clippy::unwrap_used, reason = "panic if statx fails")]
     let len = file.metadata().unwrap().len();
     #[expect(clippy::expect_used, reason = "")]
     let len = libc::size_t::try_from(len).expect("casting file size to size_t is not truncating");
+    // mmap rejects a zero length with EINVAL
+    if len == 0 {
+        return &[];
+    }
+    // SAFETY:
+    // - `file` is open for the duration of the call, the mapping outlives its fd and is never
+    //   unmapped, so the returned slice cannot dangle
+    // - a successful mmap returns a non-null, page aligned pointer to `len` readable bytes
+    // - the slice only stays immutable if no one rewrites or truncates the file while it is mapped:
+    //   MAP_SHARED makes such writes visible and truncation turns reads into SIGBUS. osh files are
+    //   only ever appended to, and appends land past `len`, outside the mapping.
     unsafe {
         let ptr = libc::mmap(
             std::ptr::null_mut(),
@@ -119,6 +131,12 @@ mod tests {
         file.write_all(data).unwrap();
         let mapped = mmap(&file);
         assert_eq!(mapped, data);
+    }
+
+    #[test]
+    fn mmap_empty_file() {
+        let file = tempfile::tempfile().unwrap();
+        assert_eq!(mmap(&file), b"");
     }
 
     #[test]
