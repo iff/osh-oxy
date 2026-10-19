@@ -1,11 +1,10 @@
-use std::{iter::Copied, ops::Range, slice::Iter};
+use std::{iter::Copied, slice::Iter};
 
 use fuzzy_matcher::{FuzzyMatcher, skim::SkimMatcherV2};
-use itertools::Either;
 use parser::{OrGroup, ParsedQuery, Term, TermType};
 use rayon::prelude::*;
 
-const BYTES_1M: usize = 1024 * 1024 * 1024;
+const BYTES_1M: usize = 1024 * 1024;
 
 /// Query parser for fuzzy matching with AND/OR combinators.
 ///
@@ -350,23 +349,6 @@ pub struct FuzzyIndex {
 
 impl FuzzyIndex {
     #[must_use]
-    pub fn new(matches: Vec<(usize, i64, Vec<usize>)>) -> Self {
-        let mut indices = Vec::with_capacity(matches.len());
-        let mut scores = Vec::with_capacity(matches.len());
-        let mut highlight_indices = Vec::with_capacity(matches.len());
-        for (idx, score, highlights) in matches {
-            indices.push(idx);
-            scores.push(score);
-            highlight_indices.push(highlights);
-        }
-        Self {
-            indices,
-            scores,
-            highlight_indices,
-        }
-    }
-
-    #[must_use]
     pub fn len(&self) -> usize {
         self.indices.len()
     }
@@ -377,14 +359,13 @@ impl FuzzyIndex {
     }
 
     /// gets the first n indices
-    #[must_use]
-    pub fn first_n(&self, n: usize) -> Either<Copied<Iter<'_, usize>>, Range<usize>> {
+    pub fn first_n(&self, n: usize) -> Copied<Iter<'_, usize>> {
         let visible_count = n.min(self.indices.len());
         #[expect(
             clippy::indexing_slicing,
             reason = "using min ensures the slice is valid"
         )]
-        Either::Left(self.indices[0..visible_count].iter().copied())
+        self.indices[0..visible_count].iter().copied()
     }
 
     /// get the i-th index
@@ -411,7 +392,7 @@ mod tests {
 
     #[test]
     fn fuzzy_index_filtered_get() {
-        let index = FuzzyIndex::new(vec![(5, 100, vec![0, 1]), (2, 50, vec![3])]);
+        let index = FuzzyIndex::from(vec![(5, 100, vec![0, 1]), (2, 50, vec![3])]);
         assert_eq!(index.get(0), Some(5));
         assert_eq!(index.get(1), Some(2));
         assert_eq!(index.get(2), None);
@@ -419,28 +400,28 @@ mod tests {
 
     #[test]
     fn fuzzy_index_filtered_len() {
-        let index = FuzzyIndex::new(vec![(5, 100, vec![]), (2, 50, vec![])]);
+        let index = FuzzyIndex::from(vec![(5, 100, vec![]), (2, 50, vec![])]);
         assert_eq!(index.len(), 2);
         assert!(!index.is_empty());
     }
 
     #[test]
     fn fuzzy_index_filtered_first_n() {
-        let index = FuzzyIndex::new(vec![(5, 100, vec![]), (2, 50, vec![]), (8, 10, vec![])]);
+        let index = FuzzyIndex::from(vec![(5, 100, vec![]), (2, 50, vec![]), (8, 10, vec![])]);
         let result: Vec<usize> = index.first_n(2).collect();
         assert_eq!(result, vec![5, 2]);
     }
 
     #[test]
     fn fuzzy_index_filtered_first_n_clamps_to_available() {
-        let index = FuzzyIndex::new(vec![(1, 10, vec![])]);
+        let index = FuzzyIndex::from(vec![(1, 10, vec![])]);
         let result: Vec<usize> = index.first_n(10).collect();
         assert_eq!(result, vec![1]);
     }
 
     #[test]
     fn fuzzy_index_filtered_scores_and_highlights() {
-        let index = FuzzyIndex::new(vec![(5, 100, vec![0, 1]), (2, 50, vec![3, 4])]);
+        let index = FuzzyIndex::from(vec![(5, 100, vec![0, 1]), (2, 50, vec![3, 4])]);
         assert_eq!(index.matcher_score(0), Some(100));
         assert_eq!(index.matcher_score(1), Some(50));
         assert_eq!(index.matcher_score(2), None);

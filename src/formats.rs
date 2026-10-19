@@ -11,10 +11,10 @@ pub enum Kind {
 impl Kind {
     /// get file extension for a format kind
     #[must_use]
-    pub fn extension(&self) -> String {
+    pub fn extension(&self) -> &'static str {
         match self {
-            Kind::JsonLines => "osh".to_string(),
-            Kind::Rmp => "bosh".to_string(),
+            Kind::JsonLines => "osh",
+            Kind::Rmp => "bosh",
         }
     }
 }
