@@ -193,6 +193,14 @@ mod parser {
     }
 }
 
+/// A successful match of a term or a whole line.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct TermMatch {
+    pub score: i64,
+    /// sorted char indices into the line
+    pub highlights: Vec<usize>,
+}
+
 pub struct FuzzyEngine {
     parsed_query: ParsedQuery,
     matcher: SkimMatcherV2,
@@ -210,48 +218,33 @@ impl FuzzyEngine {
         }
     }
 
-    /// Match a single term against the line, returning (score, indices) or None.
+    /// Match a single term against the line.
     /// We match Skims behavior here and use the pattern length as a score for non-fuzzy matcher.
-    fn match_term(&self, line: &str, term: &Term) -> Option<(i64, Vec<usize>)> {
+    fn match_term(&self, line: &str, term: &Term) -> Option<TermMatch> {
         match term.term_type {
-            TermType::Fuzzy => self.matcher.fuzzy_indices(line, &term.pattern),
+            TermType::Fuzzy => self
+                .matcher
+                .fuzzy_indices(line, &term.pattern)
+                .map(|(score, highlights)| TermMatch { score, highlights }),
 
             TermType::Exact => {
                 let start = line.find(&term.pattern)?;
-                let indices: Vec<usize> = (start..start + term.pattern.len()).collect();
-                let score = i64::try_from(term.pattern.len()).unwrap_or(i64::MAX);
-                Some((score, indices))
+                Some(literal_match(line, start, &term.pattern))
             }
 
-            TermType::Prefix => {
-                if line.starts_with(&term.pattern) {
-                    let indices: Vec<usize> = (0..term.pattern.len()).collect();
-                    let score = i64::try_from(term.pattern.len()).unwrap_or(i64::MAX);
-                    Some((score, indices))
-                } else {
-                    None
-                }
-            }
+            TermType::Prefix => line
+                .starts_with(&term.pattern)
+                .then(|| literal_match(line, 0, &term.pattern)),
 
-            TermType::Suffix => {
-                if line.ends_with(&term.pattern) {
-                    let start = line.len() - term.pattern.len();
-                    let indices: Vec<usize> = (start..line.len()).collect();
-                    let score = i64::try_from(term.pattern.len()).unwrap_or(i64::MAX);
-                    Some((score, indices))
-                } else {
-                    None
-                }
-            }
+            TermType::Suffix => line
+                .ends_with(&term.pattern)
+                .then(|| literal_match(line, line.len() - term.pattern.len(), &term.pattern)),
 
-            // TODO: match_line returns (0, vec![]) for "no match", so we use score 1 here
-            // to distinguish "inverse matched" from "no match". Consider introducing:
-            //   enum MatchResult { NoMatch, Match { score: i64, indices: Vec<usize> } }
             TermType::InverseExact => {
                 if line.contains(&term.pattern) {
                     None
                 } else {
-                    Some((1, vec![]))
+                    Some(TermMatch::default())
                 }
             }
 
@@ -259,14 +252,14 @@ impl FuzzyEngine {
                 if line.ends_with(&term.pattern) {
                     None
                 } else {
-                    Some((1, vec![]))
+                    Some(TermMatch::default())
                 }
             }
         }
     }
 
-    /// Match an OR group: returns first matching term's (score, indices), or None if no term matches.
-    fn match_or_group(&self, line: &str, group: &OrGroup) -> Option<(i64, Vec<usize>)> {
+    /// Match an OR group: returns the first matching term, or None if no term matches.
+    fn match_or_group(&self, line: &str, group: &OrGroup) -> Option<TermMatch> {
         group
             .terms
             .iter()
@@ -279,45 +272,46 @@ impl FuzzyEngine {
         entries
             .par_iter()
             .filter_map(|&(original_idx, line)| {
-                let (score, highlights) = self.match_line(line);
-                if !self.parsed_query.groups.is_empty() && score == 0 {
-                    return None;
-                }
+                let TermMatch { score, highlights } = self.match_line(line)?;
                 Some((original_idx, score, highlights))
             })
             .collect()
     }
 
-    pub fn match_line(&self, line: &str) -> (i64, Vec<usize>) {
-        if self.parsed_query.groups.is_empty() {
-            return (0, vec![]);
-        }
-
+    /// Matches all groups against `line`, an empty query matches every line.
+    pub fn match_line(&self, line: &str) -> Option<TermMatch> {
         // AND: all groups must match
-        let group_results: Option<Vec<_>> = self
+        let results: Vec<TermMatch> = self
             .parsed_query
             .groups
             .iter()
             .map(|group| self.match_or_group(line, group))
-            .collect();
+            .collect::<Option<_>>()?;
 
-        let Some(results) = group_results else {
-            return (0, vec![]);
-        };
-
-        let total_score = results.iter().map(|(score, _)| score).sum();
-        let mut all_indices: Vec<usize> = results
+        let score = results.iter().map(|result| result.score).sum();
+        let mut highlights: Vec<usize> = results
             .into_iter()
-            .flat_map(|(_, indices)| indices)
+            .flat_map(|result| result.highlights)
             .collect();
-        all_indices.sort_unstable();
-        all_indices.dedup();
+        highlights.sort_unstable();
+        highlights.dedup();
 
-        (total_score, all_indices)
+        Some(TermMatch { score, highlights })
+    }
+}
+
+/// Match of a literal `pattern` found at byte offset `start` of `line`. Highlights are char
+/// indices (like skim's `fuzzy_indices`) while the `str` search methods return byte offsets.
+fn literal_match(line: &str, start: usize, pattern: &str) -> TermMatch {
+    let first = line.get(..start).map_or(0, |before| before.chars().count());
+    TermMatch {
+        score: i64::try_from(pattern.len()).unwrap_or(i64::MAX),
+        highlights: (first..first + pattern.chars().count()).collect(),
     }
 }
 
 /// index, score, highlight indices
+// TODO: use a struct with named fields like `TermMatch`; also used by `FuzzyIndex` and the ui
 pub type Match = (usize, i64, Vec<usize>);
 
 impl From<Vec<Match>> for FuzzyIndex {
@@ -430,58 +424,63 @@ mod tests {
         assert_eq!(index.highlight_indices(2), None);
     }
 
+    fn matches(engine: &FuzzyEngine, line: &str) -> bool {
+        engine.match_line(line).is_some()
+    }
+
     #[test]
     fn single_term_matches() {
         let engine = FuzzyEngine::new("git");
-        let (score, indices) = engine.match_line("git commit");
+        let TermMatch {
+            score,
+            highlights: indices,
+        } = engine.match_line("git commit").unwrap();
         assert!(score > 0);
-        assert!(!indices.is_empty());
+        assert_ne!(indices, [] as [usize; 0]);
     }
 
     #[test]
     fn single_term_no_match() {
         let engine = FuzzyEngine::new("xyz");
-        let (score, indices) = engine.match_line("git commit");
-        assert_eq!(score, 0);
-        assert!(indices.is_empty());
+        assert!(engine.match_line("git commit").is_none());
     }
 
     #[test]
     fn and_both_terms_match() {
         let engine = FuzzyEngine::new("git commit");
-        let (score, indices) = engine.match_line("git commit -m 'message'");
+        let TermMatch {
+            score,
+            highlights: indices,
+        } = engine.match_line("git commit -m 'message'").unwrap();
         assert!(score > 0);
-        assert!(!indices.is_empty());
+        assert_ne!(indices, [] as [usize; 0]);
     }
 
     #[test]
     fn and_one_term_fails() {
         let engine = FuzzyEngine::new("git xyz");
-        let (score, indices) = engine.match_line("git commit");
-        assert_eq!(score, 0);
-        assert!(indices.is_empty());
+        assert!(engine.match_line("git commit").is_none());
     }
 
     #[test]
-    fn empty_query_no_match() {
+    fn empty_query_matches_everything() {
         let engine = FuzzyEngine::new("");
-        let (score, indices) = engine.match_line("git commit");
-        assert_eq!(score, 0);
-        assert!(indices.is_empty());
+        assert_eq!(engine.match_line("git commit"), Some(TermMatch::default()));
     }
 
     #[test]
-    fn whitespace_only_query_no_match() {
+    fn whitespace_only_query_matches_everything() {
         let engine = FuzzyEngine::new("   ");
-        let (score, indices) = engine.match_line("git commit");
-        assert_eq!(score, 0);
-        assert!(indices.is_empty());
+        assert_eq!(engine.match_line("git commit"), Some(TermMatch::default()));
     }
 
     #[test]
     fn highlight_indices_deduplicated() {
         let engine = FuzzyEngine::new("ab ba");
-        let (score, indices) = engine.match_line("abba");
+        let TermMatch {
+            score,
+            highlights: indices,
+        } = engine.match_line("abba").unwrap();
         assert!(score > 0);
         let mut sorted_indices = indices.clone();
         sorted_indices.sort_unstable();
@@ -497,8 +496,14 @@ mod tests {
         let engine_single = FuzzyEngine::new("git");
         let engine_double = FuzzyEngine::new("git commit");
 
-        let (score_single, _) = engine_single.match_line("git commit -m 'message'");
-        let (score_double, _) = engine_double.match_line("git commit -m 'message'");
+        let TermMatch {
+            score: score_single,
+            ..
+        } = engine_single.match_line("git commit -m 'message'").unwrap();
+        let TermMatch {
+            score: score_double,
+            ..
+        } = engine_double.match_line("git commit -m 'message'").unwrap();
 
         assert!(
             score_double > score_single,
@@ -509,65 +514,60 @@ mod tests {
     #[test]
     fn or_first_alternative_matches() {
         let engine = FuzzyEngine::new("git | hg");
-        let (score, indices) = engine.match_line("git commit");
+        let TermMatch {
+            score,
+            highlights: indices,
+        } = engine.match_line("git commit").unwrap();
         assert!(score > 0);
-        assert!(!indices.is_empty());
+        assert_ne!(indices, [] as [usize; 0]);
     }
 
     #[test]
     fn or_second_alternative_matches() {
         let engine = FuzzyEngine::new("git | hg");
-        let (score, indices) = engine.match_line("hg commit");
+        let TermMatch {
+            score,
+            highlights: indices,
+        } = engine.match_line("hg commit").unwrap();
         assert!(score > 0);
-        assert!(!indices.is_empty());
+        assert_ne!(indices, [] as [usize; 0]);
     }
 
     #[test]
     fn or_no_alternative_matches() {
         let engine = FuzzyEngine::new("git | hg");
-        let (score, indices) = engine.match_line("svn commit");
-        assert_eq!(score, 0);
-        assert!(indices.is_empty());
+        assert!(engine.match_line("svn commit").is_none());
     }
 
     #[test]
     fn or_with_and() {
         let engine = FuzzyEngine::new("git | hg commit");
-
-        let (score1, _) = engine.match_line("git commit");
-        assert!(score1 > 0, "git commit should match");
-
-        let (score2, _) = engine.match_line("hg commit");
-        assert!(score2 > 0, "hg commit should match");
-
-        let (score3, _) = engine.match_line("git push");
-        assert_eq!(score3, 0, "git push should not match (missing commit)");
-
-        let (score4, _) = engine.match_line("svn commit");
-        assert_eq!(score4, 0, "svn commit should not match (missing git|hg)");
+        assert!(matches(&engine, "git commit"), "git commit should match");
+        assert!(matches(&engine, "hg commit"), "hg commit should match");
+        assert!(
+            !matches(&engine, "git push"),
+            "git push should not match (missing commit)"
+        );
+        assert!(
+            !matches(&engine, "svn commit"),
+            "svn commit should not match (missing git|hg)"
+        );
     }
 
     #[test]
     fn or_binds_tighter_than_and() {
         let engine = FuzzyEngine::new("readme .md | .txt");
-
-        let (score1, _) = engine.match_line("readme.md");
-        assert!(score1 > 0, "readme.md should match");
-
-        let (score2, _) = engine.match_line("readme.txt");
-        assert!(score2 > 0, "readme.txt should match");
-
-        let (score3, _) = engine.match_line("readme.rs");
-        assert_eq!(score3, 0, "readme.rs should not match");
-
-        let (score4, _) = engine.match_line("changelog.md");
-        assert_eq!(score4, 0, "changelog.md should not match (missing readme)");
-
+        assert!(matches(&engine, "readme.md"), "readme.md should match");
+        assert!(matches(&engine, "readme.txt"), "readme.txt should match");
+        assert!(!matches(&engine, "readme.rs"), "readme.rs should not match");
+        assert!(
+            !matches(&engine, "changelog.md"),
+            "changelog.md should not match (missing readme)"
+        );
         // This is the key precedence test: if AND bound tighter, "notes.txt" would match
         // because it would parse as (readme AND .md) OR .txt
-        let (score5, _) = engine.match_line("notes.txt");
-        assert_eq!(
-            score5, 0,
+        assert!(
+            !matches(&engine, "notes.txt"),
             "notes.txt should not match (OR binds tighter than AND)"
         );
     }
@@ -575,131 +575,188 @@ mod tests {
     #[test]
     fn trailing_pipe_is_literal() {
         let engine = FuzzyEngine::new("git |");
-
-        let (score1, _) = engine.match_line("git | wc");
-        assert!(score1 > 0, "should match git AND |");
-
-        let (score2, _) = engine.match_line("git commit");
-        assert_eq!(score2, 0, "should not match - missing |");
+        assert!(matches(&engine, "git | wc"), "should match git AND |");
+        assert!(
+            !matches(&engine, "git commit"),
+            "should not match - missing |"
+        );
     }
 
     #[test]
     fn leading_pipe_is_literal() {
         let engine = FuzzyEngine::new("| git");
-
-        let (score1, _) = engine.match_line("foo | git bar");
-        assert!(score1 > 0, "should match | AND git");
-
-        let (score2, _) = engine.match_line("git commit");
-        assert_eq!(score2, 0, "should not match - missing |");
+        assert!(matches(&engine, "foo | git bar"), "should match | AND git");
+        assert!(
+            !matches(&engine, "git commit"),
+            "should not match - missing |"
+        );
     }
 
     #[test]
     fn lone_pipe_is_literal() {
         let engine = FuzzyEngine::new("|");
-
-        let (score1, _) = engine.match_line("foo | bar");
-        assert!(score1 > 0, "should match literal |");
-
-        let (score2, _) = engine.match_line("foo bar");
-        assert_eq!(score2, 0, "should not match - no pipe");
+        assert!(matches(&engine, "foo | bar"), "should match literal |");
+        assert!(!matches(&engine, "foo bar"), "should not match - no pipe");
     }
 
     #[test]
     fn pipe_without_spaces_is_literal() {
         let engine = FuzzyEngine::new("grep|wc");
-
-        let (score1, _) = engine.match_line("cat file | grep foo | wc -l");
-        assert!(score1 > 0, "should match literal grep|wc");
-
-        let (score2, _) = engine.match_line("grep something");
-        assert_eq!(score2, 0, "should not match grep alone (no pipe)");
+        assert!(
+            matches(&engine, "cat file | grep foo | wc -l"),
+            "should match literal grep|wc"
+        );
+        assert!(
+            !matches(&engine, "grep something"),
+            "should not match grep alone (no pipe)"
+        );
     }
-
-    // Phase 3: Special operators
 
     #[test]
     fn prefix_match() {
         let engine = FuzzyEngine::new("^git");
 
-        let (score1, indices) = engine.match_line("git commit");
-        assert!(score1 > 0, "should match - starts with git");
+        let TermMatch {
+            score,
+            highlights: indices,
+        } = engine.match_line("git commit").unwrap();
+        assert!(score > 0, "should match - starts with git");
         assert_eq!(indices, vec![0, 1, 2]);
 
-        let (score2, _) = engine.match_line("fugitive git");
-        assert_eq!(score2, 0, "should not match - git not at start");
+        assert!(
+            !matches(&engine, "fugitive git"),
+            "should not match - git not at start"
+        );
     }
 
     #[test]
     fn suffix_match() {
         let engine = FuzzyEngine::new(".rs$");
 
-        let (score1, indices) = engine.match_line("main.rs");
-        assert!(score1 > 0, "should match - ends with .rs");
+        let TermMatch {
+            score,
+            highlights: indices,
+        } = engine.match_line("main.rs").unwrap();
+        assert!(score > 0, "should match - ends with .rs");
         assert_eq!(indices, vec![4, 5, 6]);
 
-        let (score2, _) = engine.match_line("main.rs.bak");
-        assert_eq!(score2, 0, "should not match - .rs not at end");
+        assert!(
+            !matches(&engine, "main.rs.bak"),
+            "should not match - .rs not at end"
+        );
     }
 
     #[test]
     fn exact_match() {
         let engine = FuzzyEngine::new("'git");
+        assert!(
+            matches(&engine, "git commit"),
+            "should match - contains git"
+        );
+        assert!(
+            !matches(&engine, "gti commit"),
+            "should not match - gti is not git (no fuzzy)"
+        );
+    }
 
-        let (score1, _) = engine.match_line("git commit");
-        assert!(score1 > 0, "should match - contains git");
-
-        let (score2, _) = engine.match_line("gti commit");
-        assert_eq!(score2, 0, "should not match - gti is not git (no fuzzy)");
+    #[test]
+    fn empty_prefix_and_exact_match_everything() {
+        for query in ["^", "'"] {
+            let engine = FuzzyEngine::new(query);
+            assert!(matches(&engine, "git commit"), "{query} should match");
+        }
     }
 
     #[test]
     fn inverse_exact_match() {
         let engine = FuzzyEngine::new("!test");
-
-        let (score1, _) = engine.match_line("cargo build");
-        assert!(score1 > 0, "should match - does not contain test");
-
-        let (score2, _) = engine.match_line("cargo test");
-        assert_eq!(score2, 0, "should not match - contains test");
+        assert!(
+            matches(&engine, "cargo build"),
+            "should match - does not contain test"
+        );
+        assert!(
+            !matches(&engine, "cargo test"),
+            "should not match - contains test"
+        );
     }
 
     #[test]
     fn inverse_suffix_match() {
         let engine = FuzzyEngine::new("!.tmp$");
-
-        let (score1, _) = engine.match_line("main.rs");
-        assert!(score1 > 0, "should match - does not end with .tmp");
-
-        let (score2, _) = engine.match_line("file.tmp");
-        assert_eq!(score2, 0, "should not match - ends with .tmp");
+        assert!(
+            matches(&engine, "main.rs"),
+            "should match - does not end with .tmp"
+        );
+        assert!(
+            !matches(&engine, "file.tmp"),
+            "should not match - ends with .tmp"
+        );
     }
 
     #[test]
     fn combined_operators() {
         let engine = FuzzyEngine::new("^git !test");
-
-        let (score1, _) = engine.match_line("git commit");
-        assert!(score1 > 0, "should match - starts with git, no test");
-
-        let (score2, _) = engine.match_line("git test");
-        assert_eq!(score2, 0, "should not match - contains test");
-
-        let (score3, _) = engine.match_line("fugitive git");
-        assert_eq!(score3, 0, "should not match - doesn't start with git");
+        assert!(
+            matches(&engine, "git commit"),
+            "should match - starts with git, no test"
+        );
+        assert!(
+            !matches(&engine, "git test"),
+            "should not match - contains test"
+        );
+        assert!(
+            !matches(&engine, "fugitive git"),
+            "should not match - doesn't start with git"
+        );
     }
 
     #[test]
     fn operators_with_or() {
         let engine = FuzzyEngine::new(".rs$ | .py$");
+        assert!(matches(&engine, "main.rs"), "should match .rs");
+        assert!(matches(&engine, "main.py"), "should match .py");
+        assert!(!matches(&engine, "main.go"), "should not match .go");
+    }
 
-        let (score1, _) = engine.match_line("main.rs");
-        assert!(score1 > 0, "should match .rs");
+    fn highlighted(line: &str, indices: &[usize]) -> Option<String> {
+        indices
+            .iter()
+            .map(|&index| line.chars().nth(index))
+            .collect()
+    }
 
-        let (score2, _) = engine.match_line("main.py");
-        assert!(score2 > 0, "should match .py");
+    proptest::proptest! {
+        #[test]
+        fn highlights_are_sorted_unique_char_indices(line in ".*", query in ".*") {
+            let indices = FuzzyEngine::new(&query).match_line(&line).unwrap_or_default().highlights;
+            let char_count = line.chars().count();
+            proptest::prop_assert!(indices.windows(2).all(|pair| pair[0] < pair[1]));
+            proptest::prop_assert!(indices.iter().all(|&index| index < char_count));
+        }
 
-        let (score3, _) = engine.match_line("main.go");
-        assert_eq!(score3, 0, "should not match .go");
+        #[test]
+        fn exact_highlights_the_pattern(
+            before in ".*",
+            pattern in "[^\\s]+",
+            after in ".*",
+        ) {
+            let line = format!("{before}{pattern}{after}");
+            let indices = FuzzyEngine::new(&format!("'{pattern}")).match_line(&line).unwrap_or_default().highlights;
+            proptest::prop_assert_eq!(highlighted(&line, &indices), Some(pattern));
+        }
+
+        #[test]
+        fn suffix_highlights_the_pattern(before in ".*", pattern in "[^\\s$'^!][^\\s$]*") {
+            let line = format!("{before}{pattern}");
+            let indices = FuzzyEngine::new(&format!("{pattern}$")).match_line(&line).unwrap_or_default().highlights;
+            proptest::prop_assert_eq!(highlighted(&line, &indices), Some(pattern));
+        }
+
+        #[test]
+        fn line_matching_its_own_prefix_is_kept(prefix in "[^\\s]*", rest in ".*") {
+            let line = format!("{prefix}{rest}");
+            let engine = FuzzyEngine::new(&format!("^{prefix}"));
+            proptest::prop_assert_eq!(engine.match_all(&[(0, line.as_str())]).len(), 1);
+        }
     }
 }
