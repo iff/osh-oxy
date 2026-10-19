@@ -7,13 +7,12 @@ use std::{
     time::Duration,
 };
 
-use anyhow::anyhow;
 use chrono::Utc;
 use crossbeam_channel::Receiver;
 use ratatui::{
     Frame, Terminal,
     backend::TerminaBackend,
-    layout::{Constraint, Direction, Layout, Position},
+    layout::{Constraint, Direction, Layout, Position, Rect},
     style::{Color, Style},
     termina::{
         Event as TerminaEvent, EventReader as TerminaEventReader, PlatformTerminal, Terminal as _,
@@ -231,6 +230,25 @@ fn decreset(mode: DecPrivateModeCode) -> Csi {
     Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(mode)))
 }
 
+fn layout(area: Rect) -> [Rect; 5] {
+    area.layout(&Layout::vertical([
+        Constraint::Min(1),    // history
+        Constraint::Length(1), // spacing
+        Constraint::Length(1), // status
+        Constraint::Length(1), // input
+        Constraint::Length(5), // preview
+    ]))
+}
+
+fn visible_history_rows(area: Rect) -> usize {
+    let [history_area, ..] = layout(area);
+    history_area.height as usize
+}
+
+fn terminal_area(terminal: &Terminal<TerminaBackend<PlatformTerminal>>) -> anyhow::Result<Rect> {
+    Ok(Rect::from((Position::ORIGIN, terminal.size()?)))
+}
+
 /// app holds the state of the application
 struct App {
     /// current value of the input box
@@ -389,9 +407,16 @@ impl App {
         self.run_matcher();
     }
 
-    fn move_selection_up(&mut self, available_height: usize) {
-        let max_index = available_height.saturating_sub(3);
-        self.selected_index = (self.selected_index + 1).min(max_index);
+    fn move_selection_up(&mut self, visible_rows: usize) {
+        self.selected_index += 1;
+        self.clamp_selection(visible_rows);
+    }
+
+    /// keeps the selection on a row that is both rendered and backed by a match
+    fn clamp_selection(&mut self, visible_rows: usize) {
+        let matches = self.indexer.as_ref().map_or(0, FuzzyIndex::len);
+        let max_index = visible_rows.min(matches).saturating_sub(1);
+        self.selected_index = self.selected_index.min(max_index);
     }
 
     fn move_selection_down(&mut self) {
@@ -439,23 +464,19 @@ impl App {
             if terminal_events.poll(Some(Duration::from_millis(100)), |_| true)? {
                 match terminal_events.read(|_| true)? {
                     TerminaEvent::WindowResized(_) => {
+                        self.clamp_selection(visible_history_rows(terminal_area(terminal)?));
                         terminal.draw(|frame| self.render(frame))?;
                     }
                     TerminaEvent::Key(key) if key.kind == KeyEventKind::Press => {
                         match (key.code, key.modifiers) {
                             (KeyCode::Enter, _) => {
-                                let Some(indexer) = self.indexer else {
-                                    return Ok(None);
-                                };
-                                let idx = indexer.get(self.selected_index).ok_or(anyhow!(
-                                    "index {:?} not in indexer",
-                                    self.selected_index
-                                ))?;
-                                if let Some(event) = self.events.get(idx) {
-                                    let event = event.clone();
-                                    return Ok(Some(event));
-                                }
-                                return Ok(None);
+                                let selected = self
+                                    .indexer
+                                    .as_ref()
+                                    .and_then(|indexer| indexer.get(self.selected_index))
+                                    .and_then(|index| self.events.get(index))
+                                    .cloned();
+                                return Ok(selected);
                             }
                             (
                                 KeyCode::Char(to_insert),
@@ -490,9 +511,9 @@ impl App {
                             (KeyCode::Left, _) => self.move_cursor_left(),
                             (KeyCode::Right, _) => self.move_cursor_right(),
                             (KeyCode::Up, _) => {
-                                let available_height =
-                                    terminal.size()?.height.saturating_sub(5) as usize;
-                                self.move_selection_up(available_height);
+                                self.move_selection_up(visible_history_rows(terminal_area(
+                                    terminal,
+                                )?));
                             }
                             (KeyCode::Down, _) => self.move_selection_down(),
                             (KeyCode::Escape, _)
@@ -581,15 +602,8 @@ impl App {
     }
 
     fn render(&self, frame: &mut Frame) {
-        let layout = Layout::vertical([
-            Constraint::Min(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(5),
-        ]);
-        let [history_area, status_area, input_area, preview_area] = frame.area().layout(&layout);
-
-        let available_height = history_area.height.saturating_sub(1) as usize;
+        let [history_area, _, status_area, input_area, preview_area] = layout(frame.area());
+        let available_height = visible_history_rows(frame.area());
 
         let now = Utc::now().timestamp_millis();
         let timeago_fmt = timeago::Formatter::new();
@@ -687,6 +701,12 @@ mod tests {
         }
     }
 
+    fn with_matches(mut app: App, count: usize) -> App {
+        let matches: Vec<Match> = (0..count).map(|index| (index, 0, vec![])).collect();
+        app.indexer = Some(FuzzyIndex::from(matches));
+        app
+    }
+
     #[test]
     fn delete_word_basic() {
         let mut app = make_app("hello world");
@@ -781,17 +801,55 @@ mod tests {
 
     #[test]
     fn move_selection_up_increments() {
-        let mut app = make_app("");
+        let mut app = with_matches(make_app(""), 10);
         app.move_selection_up(10);
         assert_eq!(app.selected_index, 1);
     }
 
     #[test]
-    fn move_selection_up_clamps_to_height() {
+    fn move_selection_up_clamps_to_visible_rows() {
+        let mut app = with_matches(make_app(""), 10);
+        app.selected_index = 4;
+        app.move_selection_up(5);
+        assert_eq!(app.selected_index, 4);
+    }
+
+    #[test]
+    fn move_selection_up_clamps_to_matches() {
+        let mut app = with_matches(make_app(""), 2);
+        app.selected_index = 1;
+        app.move_selection_up(10);
+        assert_eq!(app.selected_index, 1);
+    }
+
+    #[test]
+    fn move_selection_up_without_matches_stays_at_zero() {
         let mut app = make_app("");
-        app.selected_index = 6;
-        app.move_selection_up(8); // max = 8 - 3 = 5
-        assert_eq!(app.selected_index, 5);
+        app.move_selection_up(10);
+        assert_eq!(app.selected_index, 0);
+    }
+
+    #[test]
+    fn clamp_selection_after_shrinking_rows() {
+        let mut app = with_matches(make_app(""), 10);
+        app.selected_index = 8;
+        app.clamp_selection(3);
+        assert_eq!(app.selected_index, 2);
+    }
+
+    #[test]
+    fn visible_history_rows_matches_rendered_layout() {
+        for total_rows in [3, 24] {
+            let area = Rect::new(0, 0, 80, total_rows);
+            let [_, padding, status_area, input_area, preview_area] = layout(area);
+            let available_height = visible_history_rows(area);
+            let occupied_ui_height =
+                padding.height + status_area.height + input_area.height + preview_area.height;
+            assert_eq!(
+                available_height,
+                total_rows.saturating_sub(occupied_ui_height) as usize
+            );
+        }
     }
 
     #[test]
