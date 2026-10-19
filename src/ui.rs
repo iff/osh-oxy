@@ -1,11 +1,5 @@
 //! Ratatui-based TUI. Entry point is [`Tui::start`].
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Display,
-    io::Write,
-    str::FromStr,
-    time::Duration,
-};
+use std::{collections::HashSet, fmt::Display, io::Write, str::FromStr, time::Duration};
 
 use chrono::Utc;
 use crossbeam_channel::Receiver;
@@ -99,24 +93,13 @@ impl<'a> FilteredView<'a> {
         filters: &HashSet<EventFilter>,
         folder: &str,
         session_id: Option<&str>,
-        dedup_map: &HashMap<String, usize>,
     ) -> Self {
-        let indices = if filters.contains(&EventFilter::Duplicates) {
-            let mut dedup_indices: Vec<usize> = dedup_map.values().copied().collect();
-            dedup_indices.sort_unstable();
-            dedup_indices
-        } else {
-            (0..events.len()).collect()
-        };
-
-        let indices = indices
-            .into_iter()
-            .filter(|&i| {
-                #[expect(
-                    clippy::indexing_slicing,
-                    reason = "invariant by construction: i < self.events.len()"
-                )]
-                let event = &events[i];
+        let deduplicate = filters.contains(&EventFilter::Duplicates);
+        let mut seen_commands = HashSet::new();
+        let indices = events
+            .iter()
+            .enumerate()
+            .filter(|(_, event)| {
                 filters.iter().all(|f| match f {
                     EventFilter::Duplicates => true,
                     EventFilter::SessionId => session_id.is_none_or(|sid| event.session == sid),
@@ -124,6 +107,9 @@ impl<'a> FilteredView<'a> {
                     EventFilter::ExitCodeSuccess => event.exit_code == 0,
                 })
             })
+            // dedup only among events passing the other filters
+            .filter(|(_, event)| !deduplicate || seen_commands.insert(event.command.as_str()))
+            .map(|(index, _)| index)
             .collect();
 
         Self { events, indices }
@@ -268,8 +254,6 @@ struct App {
     folder: String,
     session_id: Option<String>,
     show_score: bool,
-    /// deduplicated list of entries (see [`EventFilter::Duplicates`])
-    dedup_map: HashMap<String, usize>,
 }
 
 impl App {
@@ -293,16 +277,11 @@ impl App {
             folder,
             session_id,
             show_score,
-            dedup_map: HashMap::new(),
         }
     }
 
     fn collect_new_events(&mut self) {
         let mut new_events = self.reader.take();
-        let base = self.events.len();
-        for (i, e) in new_events.iter().enumerate() {
-            self.dedup_map.entry(e.command.clone()).or_insert(base + i);
-        }
         self.events.append(&mut new_events);
     }
 
@@ -312,7 +291,6 @@ impl App {
             &self.filters,
             &self.folder,
             self.session_id.as_deref(),
-            &self.dedup_map,
         );
         let entries: Vec<(usize, &str)> = filtered.entries().collect();
 
@@ -693,7 +671,6 @@ mod tests {
             folder: String::new(),
             session_id: None,
             show_score: false,
-            dedup_map: HashMap::new(),
         }
     }
 
@@ -992,5 +969,92 @@ mod tests {
     #[test]
     fn event_filter_from_str_unknown() {
         assert!("unknown".parse::<EventFilter>().is_err());
+    }
+
+    /// pick (command, folder, session, exit code) from tiny pools so duplicates are common
+    type EventSpec = (usize, usize, usize, i16);
+
+    fn app_with_events(specs: &[EventSpec], with_session: bool) -> App {
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        let mut app = make_app("");
+        app.reader = EventReader::new(receiver);
+        app.folder = "/x".to_string();
+        app.session_id = with_session.then(|| "s0".to_string());
+        // newest first, like `load_sorted`
+        for (age, &(command, folder, session, exit_code)) in specs.iter().enumerate() {
+            sender
+                .send(Event {
+                    timestamp_millis: 0,
+                    command: ["a", "b", "c"][command].to_string(),
+                    endtime: -i64::try_from(age).unwrap(),
+                    exit_code,
+                    folder: ["/x", "/y"][folder].to_string(),
+                    machine: String::new(),
+                    session: format!("s{session}"),
+                })
+                .unwrap();
+        }
+        app.collect_new_events();
+        app
+    }
+
+    fn filter_set(enabled: [bool; 4]) -> HashSet<EventFilter> {
+        [
+            EventFilter::Duplicates,
+            EventFilter::SessionId,
+            EventFilter::Folder,
+            EventFilter::ExitCodeSuccess,
+        ]
+        .into_iter()
+        .zip(enabled)
+        .filter_map(|(filter, on)| on.then_some(filter))
+        .collect()
+    }
+
+    fn visible(app: &App, filters: &HashSet<EventFilter>) -> Vec<usize> {
+        FilteredView::build(&app.events, filters, &app.folder, app.session_id.as_deref()).indices
+    }
+
+    fn event_specs() -> impl proptest::strategy::Strategy<Value = Vec<EventSpec>> {
+        proptest::collection::vec((0..3usize, 0..2usize, 0..2usize, 0..2i16), 0..20)
+    }
+
+    proptest::proptest! {
+        #[test]
+        fn adding_filters_only_shrinks_the_visible_commands(
+            specs in event_specs(),
+            base in proptest::array::uniform4(proptest::bool::ANY),
+            extra in proptest::array::uniform4(proptest::bool::ANY),
+            with_session in proptest::bool::ANY,
+        ) {
+            let app = app_with_events(&specs, with_session);
+            let commands = |filters: &HashSet<EventFilter>| -> HashSet<&str> {
+                visible(&app, filters)
+                    .into_iter()
+                    .map(|index| app.events[index].command.as_str())
+                    .collect()
+            };
+            let fewer = filter_set(base);
+            let more: HashSet<EventFilter> = fewer.union(&filter_set(extra)).cloned().collect();
+            proptest::prop_assert!(commands(&more).is_subset(&commands(&fewer)));
+        }
+
+        #[test]
+        fn duplicates_filter_keeps_newest_visible_copy_of_each_command(
+            specs in event_specs(),
+            base in proptest::array::uniform4(proptest::bool::ANY),
+            with_session in proptest::bool::ANY,
+        ) {
+            let app = app_with_events(&specs, with_session);
+            let mut filters = filter_set(base);
+            filters.remove(&EventFilter::Duplicates);
+            let mut seen = HashSet::new();
+            let expected: Vec<usize> = visible(&app, &filters)
+                .into_iter()
+                .filter(|&index| seen.insert(app.events[index].command.clone()))
+                .collect();
+            filters.insert(EventFilter::Duplicates);
+            proptest::prop_assert_eq!(visible(&app, &filters), expected);
+        }
     }
 }
