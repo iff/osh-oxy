@@ -1,6 +1,5 @@
 - replace fuzzy-matcher with nucleo? (https://github.com/helix-editor/nucleo)
   - https://docs.rs/nucleo-matcher/0.3.1/nucleo_matcher/struct.Matcher.html
-- switch to termina with 0.30.2: https://ratatui.rs/highlights/v0302/#backend-ratatui-termina
 - replace fuzzy-matcher with frizbee (https://github.com/saghen/frizbee)?
 r reimplement basics we need (tui with ratatui and fuzzy-matcher as lib) to enable reload/filters
   - hardcoded offsets (height...)
@@ -12,10 +11,11 @@ r reimplement basics we need (tui with ratatui and fuzzy-matcher as lib) to enab
   x combine filters?
   x highlight matches via indices returned from fuzzy indices
   x better duplication filtering
-- add a mechanism to filer some commands permanently
+- add a mechanism to filter some commands permanently
   - or add a command that lets the user interactively prune history files?
 - understand Rust pdqsort in detail and write better benchs
     - also look into glidesort: https://github.com/orlp/glidesort
+x switch to termina with 0.30.2: https://ratatui.rs/highlights/v0302/#backend-ratatui-termina
 x enable ^'.. chars in query 
 x ctrl-w should delete a word
 x speedups (currently not an issue with my history volume)
